@@ -1,0 +1,16 @@
+{
+  "name": "El Faro de las Palabras",
+  "short_name": "Faro",
+  "description": "Aventura para aprender a leer y escribir, de 6 a 11 años.",
+  "lang": "es-AR",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF8EC",
+  "theme_color": "#1B3A5C",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

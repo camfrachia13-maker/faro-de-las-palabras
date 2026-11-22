@@ -1,25 +1,49 @@
 {
   "expo": {
-    "name": "faro",
-    "slug": "faro",
-    "version": "1.0.0",
+    "name": "El Faro de las Palabras",
+    "slug": "faro-de-las-palabras",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.CAMBIAR.farodelaspalabras",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFF8EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.CAMBIAR.farodelaspalabras",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "El Faro de las Palabras",
+      "themeColor": "#1B3A5C",
+      "backgroundColor": "#FFF8EC",
+      "lang": "es-AR",
+      "description": "Aventura para aprender a leer y escribir, de 6 a 11 años."
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "El micrófono se usa solo si un adulto habilita la grabación de relatos. Las grabaciones no se guardan ni se envían."
+        }
+      ]
+    ],
+    "splash": {
+      "backgroundColor": "#FFF8EC"
     }
   }
 }
