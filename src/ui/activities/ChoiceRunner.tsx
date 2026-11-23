@@ -83,22 +83,28 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
     >
       {/* Estímulo */}
       <View style={{ alignItems: 'center', gap: 10 }}>
-        {st.letterSound && (
-          <Btn
-            label="Escuchar el sonido"
-            icon="speaker"
-            kind="light"
-            big
-            onPress={() => {
-              setRepeats((r) => r + 1);
-              say(st.letterSound!);
-            }}
-          />
+        {st.bigLetter && (
+          <View style={{ backgroundColor: theme.surface, borderRadius: radius.xl, paddingHorizontal: 36, paddingVertical: 4, borderWidth: 3, borderColor: theme.seaDeep }}>
+            <Text accessibilityLabel={`Letra ${st.bigLetter}`} style={{ fontSize: theme.fs(84), fontWeight: '800', color: theme.ink, textAlign: 'center' }}>
+              {caseText(st.bigLetter, settings.letterCase)}
+            </Text>
+          </View>
         )}
         {st.pic && (
           <View style={{ backgroundColor: theme.surface, borderRadius: radius.xl, paddingHorizontal: 22, paddingVertical: 8, borderWidth: 2, borderColor: theme.border }}>
-            <Pic pic={st.pic} size={st.pic.length > 4 ? 56 : 84} />
+            <Pic pic={st.pic} size={st.pic.length > 4 ? 56 : 84} label={st.sayWord} />
           </View>
+        )}
+        {st.sayWord && (
+          <Btn
+            label={`Escuchar «${st.sayWord}»`}
+            icon="speaker"
+            kind="light"
+            onPress={() => {
+              setRepeats((r) => r + 1);
+              say(st.sayWord!);
+            }}
+          />
         )}
         {st.text && (
           <View style={{ backgroundColor: theme.surface, borderRadius: radius.lg, padding: 16, borderWidth: 2, borderColor: theme.border, width: '100%' }}>
@@ -195,14 +201,14 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
             >
               {o.glyph && <ShapeGlyph shape={o.glyph.shape} color={o.glyph.color} size={64} />}
               {o.pic && <Pic pic={o.pic} size={list ? 32 : o.pic.length > 4 ? 40 : 56} />}
-              {o.label && (!o.pic || list || item.stimulus.template || o.glyph) ? (
+              {o.label && (!o.pic || list || item.stimulus.template || o.glyph || item.showPicLabels) ? (
                 <Text style={{ fontSize: theme.fs(o.label.length <= 2 ? 44 : list ? 19 : 18), fontWeight: '700', color: theme.ink, textAlign: list ? 'left' : 'center', flexShrink: 1 }}>
-                  {o.label.length <= 2 ? caseText(o.label, settings.letterCase) : o.label}
+                  {o.label.length <= 2 || item.showPicLabels ? caseText(o.label, settings.letterCase) : o.label}
                 </Text>
               ) : null}
               {isTried && <Icon name="close" size={20} color={theme.coral} />}
               {isCorrectShown && <Icon name="check" size={24} color={theme.ok} />}
-              {o.speak && !list && (
+              {o.speak && !list && item.optionAudio && (
                 <IconBtn icon="speaker" label={`Escuchar ${o.speak}`} compact onPress={() => say(o.speak!)} />
               )}
             </Pressable>
@@ -233,7 +239,7 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
         </Feedback>
       )}
       {phase === 'model' && (
-        <Feedback kind="info" text={`La respuesta era: ${correct.label ?? correct.speak ?? (correct.id.length > 2 ? correct.id.toUpperCase() : 'la opción marcada con un tilde')}. Lo vamos a volver a practicar más adelante.`}>
+        <Feedback kind="info" text={`La respuesta era: ${(correct.label ?? correct.speak ?? (correct.id.length > 2 ? correct.id.toUpperCase() : 'la opción marcada con un tilde')).replace(/[.!?]+$/, '')}. Lo vamos a volver a practicar más adelante.`}>
           <Btn label="Seguir" big onPress={() => finish(false, last?.label ?? last?.id ?? '')} />
         </Feedback>
       )}

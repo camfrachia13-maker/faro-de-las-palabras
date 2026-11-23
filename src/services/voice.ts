@@ -3,6 +3,7 @@
 // con una voz humana rioplatense: los sonidos aislados (/m/, /s/) se oyen mejor así.
 import * as Speech from 'expo-speech';
 import type { Settings } from '../domain/types';
+import { toSpeech } from '../domain/speechText';
 
 let preferredVoice: string | undefined;
 let resolved = false;
@@ -41,7 +42,7 @@ export async function speak(text: string, settings: Pick<Settings, 'voiceEnabled
   await resolveVoice();
   Speech.stop();
   setSpeaking(true);
-  Speech.speak(text, {
+  Speech.speak(toSpeech(text), {
     language: 'es-AR',
     voice: preferredVoice,
     rate: settings.rate,
@@ -57,6 +58,19 @@ export async function speak(text: string, settings: Pick<Settings, 'voiceEnabled
       onDone?.();
     },
   });
+}
+
+let unlocked = false;
+/**
+ * Safari en iPhone solo permite hablar después de un toque del usuario.
+ * Llamar a esto dentro del manejador de un toque "destraba" la voz para el resto de la sesión.
+ */
+export function unlockAudio() {
+  if (unlocked) return;
+  unlocked = true;
+  try {
+    Speech.speak(' ', { volume: 0, rate: 1 });
+  } catch {}
 }
 
 export function stopSpeaking() {

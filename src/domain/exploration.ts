@@ -33,7 +33,7 @@ export function buildExploration(): ExplorationTask[] {
       mode: 'palabra',
       word: wordById(word),
       prompt: 'Escribí el nombre del dibujo como sepas',
-      speak: 'Escribí el nombre de este dibujo, como sepas. Lo que escribas me ayuda a conocerte.',
+      speak: `Escribí, como sepas, la palabra: ${word}. Lo que escribas me ayuda a conocerte.`,
       showPic: true,
       context: 'exploracion',
     },

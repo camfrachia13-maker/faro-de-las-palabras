@@ -46,7 +46,7 @@ Para sumar contenido (palabras, cuentos, cartas, secuencias) solo hace falta edi
 
 ```bash
 npm install
-npm test             # 13 tests de la lógica educativa
+npm test             # lógica educativa + validador de contenido (miles de consignas)
 npm run typecheck
 npx expo start       # escanear el QR con Expo Go (iPhone/Android)
 npm run build:web    # vista previa web en dist/
@@ -84,10 +84,22 @@ Todavía no se eligió una licencia. Mientras tanto, todos los derechos quedan r
 
 La exploración inicial registra por separado lectura y escritura. La escritura se analiza con producciones abiertas: las hipótesis (presilábica, silábica, silábico-alfabética, alfabética) se muestran como **hipótesis pedagógicas provisorias que requieren revisión profesional**, con al menos 3 muestras y un nivel de confianza explícito.
 
+## Validador de contenido
+
+`tests/content.test.ts` genera 120 consignas por cada actividad, nivel y grado de apoyo, más la exploración inicial, y controla que:
+
+- la respuesta correcta sea la única válida y que el dibujo de la pregunta nunca aparezca entre las opciones;
+- no se ofrezcan juntas letras que suenan igual (b/v, s/z/c, g/j, y/ll) y que el sonido inicial se compare por sonido, no por letra;
+- rimas, conteo de sílabas y categorías sean correctos, y no se usen dibujos que se puedan nombrar de otra forma;
+- no haya errores de concordancia ("una tomate", "a el");
+- lo que se escucha coincida con lo que está escrito, y la voz no reciba palabras en mayúsculas (algunas voces las deletrean).
+
+Cualquier contenido nuevo tiene que pasar este test.
+
 ## Qué se verificó en este entorno
 
 - TypeScript estricto sin errores.
-- 13 tests de lógica: reglas de adaptación, análisis de escritura, generación válida de consignas en todas las actividades, niveles y apoyos (repetido 15 veces por la aleatoriedad), recompensas, informes y exploración.
+- 29 tests (lógica y validador de contenido): reglas de adaptación, análisis de escritura, generación válida de consignas en todas las actividades, niveles y apoyos (repetido 15 veces por la aleatoriedad), recompensas, informes y exploración.
 - Build web (`expo export -p web`) y recorrido automatizado en Chrome con viewport de iPhone (390×844): crear perfil, bienvenida, exploración completa, mapa, misiones de las 13 actividades, cierre de sesión, puerta parental, informes y persistencia tras recargar. No hubo errores de consola.
 
 ## Qué falta verificar en dispositivos reales

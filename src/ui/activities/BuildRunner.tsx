@@ -39,7 +39,7 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
     ns[empty] = { ch: item.tiles[tileIdx], tile: tileIdx };
     setSlots(ns);
     setUsedTiles([...usedTiles, tileIdx]);
-    say(item.tiles[tileIdx]);
+    say(`la letra ${item.tiles[tileIdx].toUpperCase()}`);
   };
   const remove = (i: number) => {
     const s = slots[i];
@@ -85,7 +85,7 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
     setSlots(ns);
     setUsedTiles(nu);
     setPhase('build');
-    say(`Va la ${target[i]}`);
+    say(`Va la letra ${target[i].toUpperCase()}`);
   };
   const finish = (resolved: boolean) => {
     const r = { hints, tries, repeats, listened: false };
@@ -178,7 +178,7 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
           kind="retry"
           text={
             mismatch > 0
-              ? `Hasta la ${target[mismatch - 1].toUpperCase()} va bien. Escuchemos desde ahí: ${item.word.syllables.join('... ')}.`
+              ? `Hasta la letra ${target[mismatch - 1].toUpperCase()} va bien. Escuchemos desde ahí: ${item.word.syllables.join('... ')}.`
               : `Escuchemos otra vez el comienzo de la palabra: ${item.word.syllables[0]}...`
           }
         >

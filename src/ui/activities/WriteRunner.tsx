@@ -2,6 +2,15 @@ import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import type { WriteItem } from '../../domain/items';
 import { analyzeWord, normalize } from '../../domain/writingAnalysis';
+import { LETTER_NAMES } from '../../content/words';
+
+/** Deletrea con el nombre de cada letra: "ese, o, ele". */
+const spell = (t: string) =>
+  t
+    .toLowerCase()
+    .split('')
+    .map((c) => (c === ' ' ? 'espacio' : LETTER_NAMES[c.normalize('NFD')[0]] ?? c))
+    .join(', ');
 import type { Outcome } from '../../domain/types';
 import { ActivityFrame, RunnerProps, strategyNotes } from './common';
 import { Btn, Feedback, LetterKeyboard, Pic, Row, Toggle, Txt, caseText, useSettings, useSpeak } from '../components';
@@ -34,7 +43,7 @@ export function WriteRunner({ item, onDone, exploration }: RunnerProps<WriteItem
     addSupport('escuchó lo que escribió');
     if (!text.trim()) return say('Todavía no escribiste nada.');
     // Se deletrea si es una palabra corta, así el niño escucha qué letras puso
-    if (!free && text.trim().length <= 10) say(`Escribiste: ${text.trim().split('').join(', ')}. Se lee: ${text}`);
+    if (!free && text.trim().length <= 10) say(`Escribiste: ${spell(text.trim())}. Se lee: ${text.toLowerCase()}`);
     else say(text);
   };
 
@@ -158,7 +167,7 @@ export function WriteRunner({ item, onDone, exploration }: RunnerProps<WriteItem
           lowercase={lower}
           onKey={(ch) => {
             setText((t) => (t + ch).slice(0, free ? 400 : 24));
-            say(ch.toLowerCase());
+            say(`la letra ${ch.toUpperCase()}`);
           }}
           onDelete={() => setText((t) => t.slice(0, -1))}
           onSpace={free || item.mode === 'palabra' ? () => setText((t) => t + ' ') : undefined}
@@ -225,7 +234,7 @@ export function WriteRunner({ item, onDone, exploration }: RunnerProps<WriteItem
               onPress={() => {
                 setShowModel(true);
                 addSupport('vio la forma convencional');
-                say(`Se escribe ${word.text.split('').join(', ')}`);
+                say(`Se escribe así: ${spell(word.text)}`);
               }}
               style={{ flex: 1 }}
             />

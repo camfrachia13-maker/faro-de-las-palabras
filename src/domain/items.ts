@@ -1,5 +1,20 @@
 // Generación de consignas según actividad, nivel y apoyo.
-import { LETTER_LEVELS, LETTER_SOUNDS, WORDS, Word, firstSound, wordById, wordsBySyllables } from '../content/words';
+import {
+  LETTER_LEVELS,
+  LETTER_NAMES,
+  PICTURABLE,
+  WORDS,
+  Word,
+  aDet,
+  det,
+  firstLetter,
+  indef,
+  initialPhoneme,
+  soundAlikeLetters,
+  wordById,
+  wordsBySyllables,
+  wordsStartingWith,
+} from '../content/words';
 import { STORIES } from '../content/stories';
 import type { ActivityId, AttemptContext } from './types';
 
@@ -36,7 +51,8 @@ export interface ChoiceItem {
   stimulus: {
     pic?: string;
     text?: string; // texto para leer (no se lee automáticamente)
-    letterSound?: string; // sonido para reproducir
+    sayWord?: string; // palabra que se puede volver a escuchar
+    bigLetter?: string; // letra grande como estímulo
     story?: { title: string; sentences: string[]; autoRead: boolean };
     card?: { shape: Shape; color: ColorName; star?: boolean };
     rule?: 'forma' | 'color';
@@ -50,6 +66,8 @@ export interface ChoiceItem {
   followUpOral?: string; // invitación a explicar en voz alta
   textIsReading?: boolean; // si escuchar el texto cuenta como apoyo
   optionLayout?: 'grid' | 'list';
+  showPicLabels?: boolean; // muestra el nombre escrito debajo de cada dibujo
+  optionAudio?: boolean; // cada dibujo tiene un botón para escuchar su nombre
 }
 export interface BuildItem {
   kind: 'build';
@@ -113,110 +131,163 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // ---------- Lectura ----------
 
-function letraSonido(level: number, support: number, rng: Rng): ChoiceItem {
-  const set = LETTER_LEVELS[Math.min(level, LETTER_LEVELS.length) - 1];
+/** Estira el comienzo de una palabra para la voz: "sssol", "mmmono"; en oclusivas, la sílaba: "da... dado". */
+export function stretchStart(x: Word): string {
+  const ph = initialPhoneme(x);
+  if (/[aeiou]/.test(x.text[0])) return `${x.text[0]}${x.text[0]}${x.text[0]}... ${x.text}`;
+  if (['m', 'n', 's', 'f', 'l', 'r', 'y'].includes(ph)) {
+    const head = x.text.startsWith('ll') ? 'll' : x.text[0];
+    return `${head}${head}${head}${x.text.slice(head.length)}... ${x.text}`;
+  }
+  // Oclusivas (p, t, k, b, d, g): se dice el comienzo hasta la primera vocal: "pa... pato", "tre... tren".
+  const onset = x.syllables.length > 1 ? x.syllables[0] : (x.text.match(/^[^aeiouáéíóú]*[aeiouáéíóú]/)?.[0] ?? x.text);
+  return `${onset}... ${x.text}`;
+}
+
+const letterName = (l: string) => LETTER_NAMES[l] ?? l;
+
+function letraSonido(level: number, support: number, rng: Rng, index: number): ChoiceItem {
+  const set = LETTER_LEVELS[Math.min(level, LETTER_LEVELS.length) - 1].filter((l) => wordsStartingWith(l).length > 0);
   const target = pick(set, rng);
   const nOpts = support >= 1 ? 2 : level >= 3 ? 4 : 3;
-  const pool = shuffle(set.filter((l) => l !== target), rng);
-  const options = shuffle([target, ...pool.slice(0, nOpts - 1)], rng).map((l) => ({ id: l, label: l }));
-  const s = LETTER_SOUNDS[target];
-  const key = wordById(s.key);
+  // Las letras distractoras nunca representan el mismo sonido que la buscada (b/v, s/z/c…).
+  const distractLetters = shuffle(
+    [...new Set([...set, ...LETTER_LEVELS.flat()])].filter((l) => !soundAlikeLetters(l, target) && wordsStartingWith(l).length > 0),
+    rng,
+  );
+  const word = pick(wordsStartingWith(target), rng);
+  const pictureMode = index % 2 === 1; // alterna: palabra→letra y letra→dibujo
+
+  if (!pictureMode) {
+    const letters = [target, ...distractLetters.filter((l) => set.includes(l)).slice(0, nOpts - 1)];
+    while (letters.length < nOpts) letters.push(distractLetters.find((l) => !letters.includes(l))!);
+    return {
+      kind: 'choice',
+      id: uid('ls'),
+      instruction: `¿Con qué letra empieza ${word.text.toUpperCase()}?`,
+      speak: `¿Con qué letra empieza ${word.text}?`,
+      stimulus: { pic: word.pic, sayWord: word.text },
+      options: shuffle(letters, rng).map((l) => ({ id: l, label: l, speak: `la ${letterName(l)}` })),
+      correctId: target,
+      hints: [
+        { text: `Escuchá el comienzo: ${stretchStart(word).toUpperCase()}`, speak: stretchStart(word) },
+        { text: 'Saqué una opción para ayudarte.', removeOption: true },
+      ],
+      explainCorrect: `¡Sí! ${word.text.toUpperCase()} empieza con la letra ${target.toUpperCase()}.`,
+      explainWrong: (o) => `Esa es la letra ${o.id.toUpperCase()}. Escuchemos otra vez el comienzo: ${stretchStart(word)}.`,
+    };
+  }
+  // letra → dibujo
+  const nPics = support >= 1 ? 2 : 3;
+  const otherWords: Word[] = [];
+  for (const l of distractLetters) {
+    if (otherWords.length >= nPics - 1) break;
+    const cand = shuffle(wordsStartingWith(l), rng).find((x) => !soundAlikeLetters(firstLetter(x), target));
+    if (cand && !otherWords.some((o) => soundAlikeLetters(firstLetter(o), firstLetter(cand)))) otherWords.push(cand);
+  }
   return {
     kind: 'choice',
     id: uid('ls'),
-    instruction: 'Tocá la letra que suena así',
-    speak: `Tocá la letra que suena así: ${s.say}.`,
-    stimulus: { letterSound: s.say, pic: support >= 2 ? key.pic : undefined },
-    options,
-    correctId: target,
+    instruction: `¿Qué dibujo empieza con la letra ${target.toUpperCase()}?`,
+    speak: `¿Qué dibujo empieza con la letra ${letterName(target)}?`,
+    stimulus: { bigLetter: target },
+    options: shuffle([word, ...otherWords], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
+    correctId: word.id,
+    optionAudio: true,
     hints: [
-      { text: `Suena como al comienzo de ${key.text.toUpperCase()} ${key.pic}`, speak: `Suena como al comienzo de ${key.text}.` },
+      { text: `La ${target.toUpperCase()} suena al comienzo de ${word.syllables[0].toUpperCase()}…`, speak: `La ${letterName(target)} suena así: ${stretchStart(word).split('...')[0]}` },
       { text: 'Saqué una opción para ayudarte.', removeOption: true },
     ],
-    explainCorrect: `Sí: la letra ${target.toUpperCase()} suena ${s.say}, como en ${key.text}.`,
+    explainCorrect: `¡Sí! ${word.text.toUpperCase()} empieza con la letra ${target.toUpperCase()}.`,
     explainWrong: (o) => {
-      const os = LETTER_SOUNDS[o.id];
-      return `La ${o.id.toUpperCase()} suena ${os ? os.say : 'distinto'}. Buscamos la que suena ${s.say}. Escuchemos otra vez.`;
+      const ow = wordById(o.id);
+      return `${ow.text.toUpperCase()} empieza con la letra ${firstLetter(ow).toUpperCase()}. Buscamos uno que empiece con la ${target.toUpperCase()}.`;
     },
   };
 }
 
-function lastSyl(w: Word) {
-  return w.syllables[w.syllables.length - 1];
+function lastSyl(x: Word) {
+  return strip(x.syllables[x.syllables.length - 1]);
 }
+const strip = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 function sonidoInicial(level: number, support: number, rng: Rng): ChoiceItem {
-  const pool = WORDS.filter((x) => !x.text.includes('ll'));
+  const pool = PICTURABLE;
   if (level >= 4) {
-    const target = pick(pool.filter((x) => x.syllables.length <= 4), rng);
+    const target = pick(pool, rng);
     const n = target.syllables.length;
     const nums = support >= 1 ? shuffle([n, n === 1 ? 2 : n - 1], rng) : [1, 2, 3, 4];
     return {
       kind: 'choice',
       id: uid('si'),
-      instruction: `¿Cuántos golpes tiene ${target.text.toUpperCase()}?`,
-      speak: `¿Cuántos golpes tiene ${target.text}? Aplaudí mientras la decís.`,
-      stimulus: { pic: target.pic },
+      instruction: `¿Cuántas partes tiene ${target.text.toUpperCase()}? Aplaudí al decirla.`,
+      speak: `¿Cuántas partes tiene ${target.text}? Aplaudí al decirla.`,
+      stimulus: { pic: target.pic, sayWord: target.text },
       options: nums.map((k) => ({ id: String(k), label: String(k), speak: String(k) })),
       correctId: String(n),
       hints: [
         { text: target.syllables.join(' - ').toUpperCase(), speak: target.syllables.join('... ') },
         { text: 'Saqué una opción.', removeOption: true },
       ],
-      explainCorrect: `Sí: ${target.syllables.join('-').toUpperCase()} tiene ${n} golpe${n > 1 ? 's' : ''}.`,
-      explainWrong: () => `Probemos aplaudir despacio: ${target.syllables.join(' - ')}.`,
+      explainCorrect: `Sí: ${target.syllables.join('-').toUpperCase()} tiene ${n} parte${n > 1 ? 's' : ''}.`,
+      explainWrong: () => `Aplaudamos despacio: ${target.syllables.join(' - ')}.`,
       optionLayout: 'grid',
     };
   }
   if (level === 3) {
-    // rima: misma última sílaba
+    // Rima: termina con la misma sílaba. Las otras opciones terminan distinto.
     const groups: Record<string, Word[]> = {};
     for (const x of pool) (groups[lastSyl(x)] ??= []).push(x);
-    const rhyming = Object.values(groups).filter((g) => g.length >= 2);
-    const g = pick(rhyming, rng);
+    const g = pick(Object.values(groups).filter((gr) => gr.length >= 2), rng);
     const [target, match] = shuffle(g, rng);
     const others = shuffle(pool.filter((x) => lastSyl(x) !== lastSyl(target)), rng).slice(0, support >= 1 ? 1 : 2);
-    const options = shuffle([match, ...others], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text }));
     return {
       kind: 'choice',
       id: uid('si'),
-      instruction: `¿Cuál termina igual que ${target.text.toUpperCase()}?`,
-      speak: `¿Cuál termina igual que ${target.text}?`,
-      stimulus: { pic: target.pic },
-      options,
+      instruction: `¿Qué otro dibujo termina igual que ${target.text.toUpperCase()}?`,
+      speak: `¿Qué otro dibujo termina igual que ${target.text}?`,
+      stimulus: { pic: target.pic, sayWord: target.text },
+      options: shuffle([match, ...others], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
       correctId: match.id,
+      optionAudio: true,
       hints: [
-        { text: `Escuchá el final: ...${lastSyl(target).toUpperCase()}`, speak: `${target.syllables.slice(0, -1).join('')}... ${lastSyl(target)}` },
+        { text: `Escuchá el final: …${lastSyl(target).toUpperCase()}`, speak: `${target.text}... termina con ${lastSyl(target)}` },
         { text: 'Saqué una opción.', removeOption: true },
       ],
       explainCorrect: `Sí: ${target.text.toUpperCase()} y ${match.text.toUpperCase()} terminan con ${lastSyl(target).toUpperCase()}.`,
       explainWrong: (o) => `${(o.label ?? '').toUpperCase()} termina distinto. Escuchemos otra vez el final de ${target.text}.`,
     };
   }
-  const target = pick(pool, rng);
-  const fs = firstSound(target);
-  const match = pick(pool.filter((x) => x.id !== target.id && firstSound(x) === fs), rng) ?? target;
-  const nOthers = support >= 1 ? 1 : level === 1 ? 1 : 2;
-  const others = shuffle(pool.filter((x) => firstSound(x) !== fs), rng).slice(0, nOthers + (level === 2 && support === 0 ? 1 : 0));
-  const options = shuffle([match, ...others], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text }));
-  const stretch = /[aeiousmfnlr]/.test(fs) ? `${fs}${fs}${fs}... ${target.text}` : `${target.syllables[0]}... ${target.text}`;
+  // Sonido inicial: solo palabras que tienen al menos otra con el mismo primer sonido.
+  const candidates = pool.filter((x) => pool.some((y) => y.id !== x.id && initialPhoneme(y) === initialPhoneme(x)));
+  const target = pick(candidates, rng);
+  const ph = initialPhoneme(target);
+  const match = pick(pool.filter((x) => x.id !== target.id && initialPhoneme(x) === ph), rng);
+  const nOthers = support >= 1 || level === 1 ? 1 : 2;
+  const others: Word[] = [];
+  for (const x of shuffle(pool, rng)) {
+    if (others.length >= nOthers) break;
+    if (initialPhoneme(x) !== ph && !others.some((o) => initialPhoneme(o) === initialPhoneme(x))) others.push(x);
+  }
   return {
     kind: 'choice',
     id: uid('si'),
-    instruction: `¿Cuál empieza como ${target.text.toUpperCase()}?`,
-    speak: `¿Cuál empieza como ${target.text}?`,
-    stimulus: { pic: target.pic },
-    options,
+    instruction: `¿Qué otro dibujo empieza con el mismo sonido que ${target.text.toUpperCase()}?`,
+    speak: `¿Qué otro dibujo empieza con el mismo sonido que ${target.text}?`,
+    stimulus: { pic: target.pic, sayWord: target.text },
+    options: shuffle([match, ...others], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
     correctId: match.id,
+    optionAudio: true,
     hints: [
-      { text: 'Escuchemos otra vez el comienzo de la palabra.', speak: stretch },
+      { text: `Escuchemos otra vez el comienzo: ${stretchStart(target).toUpperCase()}`, speak: stretchStart(target) },
       { text: 'Saqué una opción.', removeOption: true },
     ],
     explainCorrect: `Sí: ${target.text.toUpperCase()} y ${match.text.toUpperCase()} empiezan con el mismo sonido.`,
-    explainWrong: (o) => `${(o.label ?? '').toUpperCase()} empieza distinto. Escuchemos otra vez el comienzo: ${stretch}.`,
+    explainWrong: (o) => `${(o.label ?? '').toUpperCase()} empieza distinto. Escuchemos otra vez el comienzo: ${stretchStart(target)}.`,
   };
 }
 
+/** Grupos de palabras que se parecen al leer (todas con dibujo claro). */
 const SIMILAR_SETS = [
   ['gato', 'pato', 'dado'],
   ['casa', 'vaca', 'camisa'],
@@ -226,37 +297,42 @@ const SIMILAR_SETS = [
   ['pera', 'pez', 'pelota'],
   ['foca', 'vaca', 'flor'],
   ['barco', 'banana', 'ballena'],
+  ['rosa', 'ratón', 'oso'],
 ];
 
-const SENTENCE_SUBJECTS = ['gato', 'pato', 'oso', 'mono', 'foca', 'conejo'];
-const SENTENCE_OBJECTS = ['pera', 'uva', 'pan', 'banana', 'manzana', 'galleta', 'tomate'];
+const SENTENCE_SUBJECTS = ['gato', 'pato', 'oso', 'mono', 'foca', 'conejo', 'ratón'];
+const SENTENCE_OBJECTS = ['pera', 'pan', 'banana', 'manzana', 'galleta', 'tomate'];
 
-function art(w: Word) {
-  return /a$/.test(w.text) && w.text !== 'mapa' ? 'la' : 'el';
-}
+/** "come pan" (incontable) o "come una pera". */
+const eats = (o: Word) => (o.id === 'pan' ? 'pan' : `${indef(o)} ${o.text}`);
+const sentenceOf = (s: Word, o: Word) => `${capital(det(s))} ${s.text} come ${eats(o)}.`;
 
 function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: Word): ChoiceItem {
+  const reviewOk = reviewWord && reviewWord.pictureOk ? reviewWord : undefined;
   if (level <= 2) {
     let target: Word;
     let others: Word[];
     if (level === 2) {
       const set = pick(SIMILAR_SETS, rng).map(wordById);
-      target = reviewWord && !reviewWord.text.includes('ll') ? reviewWord : pick(set, rng);
+      target = reviewOk && !reviewOk.text.includes('ll') ? reviewOk : pick(set, rng);
       others = shuffle(set.filter((x) => x.id !== target.id), rng);
-      if (others.length < 2) others = [...others, ...shuffle(WORDS.filter((x) => x.id !== target.id), rng)].slice(0, 2);
+      if (others.length < 2) others = [...others, ...shuffle(PICTURABLE.filter((x) => x.id !== target.id && !others.includes(x)), rng)].slice(0, 2);
     } else {
-      target = reviewWord ?? pick(WORDS.filter((x) => x.syllables.length <= 2), rng);
-      others = shuffle(WORDS.filter((x) => x.text[0] !== target.text[0]), rng).slice(0, 2);
+      target = reviewOk ?? pick(PICTURABLE.filter((x) => x.syllables.length <= 2), rng);
+      others = [];
+      for (const x of shuffle(PICTURABLE, rng)) {
+        if (others.length >= 2) break;
+        if (x.text[0] !== target.text[0] && !others.some((o) => o.text[0] === x.text[0])) others.push(x);
+      }
     }
     others = others.slice(0, support >= 1 ? 1 : 2);
-    const options = shuffle([target, ...others], rng).map((x) => ({ id: x.id, pic: x.pic }));
     return {
       kind: 'choice',
       id: uid('lp'),
       instruction: 'Leé la palabra y tocá su dibujo',
       speak: 'Leé la palabra y tocá su dibujo.',
       stimulus: { text: target.text },
-      options,
+      options: shuffle([target, ...others], rng).map((x) => ({ id: x.id, pic: x.pic, speak: x.text })),
       correctId: target.id,
       textIsReading: true,
       hints: [
@@ -268,15 +344,16 @@ function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: 
     };
   }
   const subj = wordById(pick(SENTENCE_SUBJECTS, rng));
-  const obj = reviewWord && SENTENCE_OBJECTS.includes(reviewWord.id) ? reviewWord : wordById(pick(SENTENCE_OBJECTS, rng));
+  const obj = reviewOk && SENTENCE_OBJECTS.includes(reviewOk.id) ? reviewOk : wordById(pick(SENTENCE_OBJECTS, rng));
   const subj2 = wordById(pick(SENTENCE_SUBJECTS.filter((x) => x !== subj.id), rng));
   const obj2 = wordById(pick(SENTENCE_OBJECTS.filter((x) => x !== obj.id), rng));
-  const sentence = (s: Word, o: Word) => `${capital(art(s))} ${s.text} come ${o.text === 'pan' ? 'pan' : o.text === 'uva' ? 'uvas' : `una ${o.text}`}.`;
   if (level === 3) {
-    const correct = { id: 'ok', pic: `${subj.pic}${obj.pic}` };
-    const opts: Option[] = [correct, { id: 'a', pic: `${subj2.pic}${obj.pic}` }];
-    if (support === 0) opts.push({ id: 'b', pic: `${subj.pic}${obj2.pic}` });
-    const text = sentence(subj, obj);
+    const opts: Option[] = [
+      { id: 'ok', pic: `${subj.pic}${obj.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj)}` },
+      { id: 'a', pic: `${subj2.pic}${obj.pic}`, speak: `${det(subj2)} ${subj2.text} y ${eats(obj)}` },
+    ];
+    if (support === 0) opts.push({ id: 'b', pic: `${subj.pic}${obj2.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj2)}` });
+    const text = sentenceOf(subj, obj);
     return {
       kind: 'choice',
       id: uid('lo'),
@@ -287,16 +364,16 @@ function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: 
       correctId: 'ok',
       textIsReading: true,
       hints: [
-        { text: `¿Quién come? Mirá la segunda palabra.`, speak: '¿Quién come? Mirá la segunda palabra.' },
+        { text: '¿Quién come? Mirá la segunda palabra.', speak: '¿Quién come? Mirá la segunda palabra.' },
         { text: 'Te la leo.', speak: text, revealText: true },
       ],
-      explainCorrect: `Sí: ${text} El dibujo muestra a ${art(subj)} ${subj.text} con ${obj.text}.`,
-      explainWrong: () => `Ese dibujo no coincide del todo. Leamos otra vez: ¿quién come y qué come?`,
+      explainCorrect: `Sí: «${text}» El dibujo muestra ${aDet(subj)} ${subj.text} con ${eats(obj)}.`,
+      explainWrong: () => 'Ese dibujo no coincide del todo. Leamos otra vez: ¿quién come y qué come?',
     };
   }
-  const t1 = sentence(subj, obj);
-  const t2 = sentence(subj2, obj);
-  const t3 = sentence(subj, obj2);
+  const t1 = sentenceOf(subj, obj);
+  const t2 = sentenceOf(subj2, obj);
+  const t3 = sentenceOf(subj, obj2);
   const opts: Option[] = [{ id: 'ok', label: t1 }, { id: 'a', label: t2 }];
   if (support === 0) opts.push({ id: 'b', label: t3 });
   return {
@@ -310,11 +387,11 @@ function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: 
     textIsReading: true,
     optionLayout: 'list',
     hints: [
-      { text: `En el dibujo hay: ${subj.text} y ${obj.text}.`, speak: `En el dibujo hay ${art(subj)} ${subj.text} y ${obj.text}.` },
+      { text: `En el dibujo hay: ${det(subj)} ${subj.text} y ${eats(obj)}.`, speak: `En el dibujo hay ${indef(subj)} ${subj.text} y ${eats(obj)}.` },
       { text: 'Te leo las oraciones.', speak: opts.map((o) => o.label).join(' ... '), revealText: true },
     ],
-    explainCorrect: `Sí: "${t1}" coincide con el dibujo.`,
-    explainWrong: (o) => `"${o.label}" cambia una palabra. Compará cada palabra con el dibujo.`,
+    explainCorrect: `Sí: «${t1}» coincide con el dibujo.`,
+    explainWrong: (o) => `Esa oración cambia una palabra: «${o.label}». Compará cada palabra con el dibujo.`,
   };
 }
 
@@ -354,19 +431,21 @@ function comprension(level: number, support: number, rng: Rng, used: Set<string>
 
 // ---------- Escritura ----------
 
+// Cada carta tiene una sola palabra que le da sentido; las otras concuerdan en
+// género y número (no delatan la respuesta) pero no tienen sentido.
 const MESSAGES: { template: string; answer: string; distract: string[]; to: string }[] = [
-  { template: 'Querida Mara: te mando una ___ con mucho cariño. Tito', answer: 'flor', distract: ['nube', 'pez'], to: 'Mara' },
-  { template: 'Bruno: no encuentro la ___ de la puerta del faro. ¿La tenés vos? Lumi', answer: 'llave', distract: ['banana', 'luna'], to: 'Bruno' },
-  { template: 'Tito: el sábado vamos a la playa en ___. ¿Venís? Mara', answer: 'barco', distract: ['casa', 'dado'], to: 'Tito' },
-  { template: 'Lumi: hace frío, me pongo la ___ nueva. Bruno', answer: 'camisa', distract: ['pera', 'uva'], to: 'Lumi' },
-  { template: 'Mara: de postre comimos ___ con crema. ¡Qué rico! Tito', answer: 'banana', distract: ['zapato', 'auto'], to: 'Mara' },
-  { template: 'Bruno: por la noche se ve la ___ desde la torre. Lumi', answer: 'luna', distract: ['pelota', 'galleta'], to: 'Bruno' },
+  { template: 'Querida Mara: te mando una ___ de mi jardín. Tito', answer: 'flor', distract: ['nube', 'ballena'], to: 'Mara' },
+  { template: 'Bruno: no encuentro la ___ para abrir la puerta del faro. ¿La tenés vos? Lumi', answer: 'llave', distract: ['banana', 'luna'], to: 'Bruno' },
+  { template: 'Tito: el sábado cruzamos el mar en ___. ¿Venís? Mara', answer: 'barco', distract: ['tomate', 'dado'], to: 'Tito' },
+  { template: 'Lumi: para la fiesta me voy a poner la ___ nueva. Bruno', answer: 'camisa', distract: ['nube', 'manzana'], to: 'Lumi' },
+  { template: 'Mara: perdí un ___ en la playa. ¿Lo viste? Tito', answer: 'zapato', distract: ['sol', 'tren'], to: 'Mara' },
+  { template: 'Bruno: esta noche brilla la ___ arriba del faro. Lumi', answer: 'luna', distract: ['pelota', 'galleta'], to: 'Bruno' },
 ];
 
 function mensajesChoice(level: number, support: number, rng: Rng): ChoiceItem {
   const m = pick(MESSAGES, rng);
   const n = level === 1 || support >= 1 ? 1 : 2;
-  const options = shuffle([m.answer, ...m.distract.slice(0, n)], rng).map((x) => ({ id: x, label: x, pic: wordById(x)?.pic }));
+  const options = shuffle([m.answer, ...m.distract.slice(0, n)], rng).map((x) => ({ id: x, label: x, pic: wordById(x).pic }));
   return {
     kind: 'choice',
     id: uid('me'),
@@ -377,11 +456,11 @@ function mensajesChoice(level: number, support: number, rng: Rng): ChoiceItem {
     correctId: m.answer,
     textIsReading: true,
     hints: [
-      { text: 'Te leo la carta.', speak: m.template.replace('___', 'mmm'), revealText: true },
+      { text: 'Te leo la carta.', speak: m.template.replace('___', '... ¿qué falta? ...'), revealText: true },
       { text: 'Saqué una opción.', removeOption: true },
     ],
-    explainCorrect: `Sí, ahora se entiende: "${m.template.replace('___', m.answer)}"`,
-    explainWrong: (o) => `Escuchá cómo queda: "${m.template.replace('___', o.id)}". ¿Tiene sentido?`,
+    explainCorrect: `Sí, ahora se entiende: «${m.template.replace('___', m.answer)}»`,
+    explainWrong: (o) => `Escuchá cómo queda: «${m.template.replace('___', o.id)}». ¿Tiene sentido?`,
   };
 }
 
@@ -402,14 +481,16 @@ function mensajesWrite(level: number, rng: Rng): WriteItem {
 
 function escrituraPalabras(level: number, rng: Rng, reviewWord?: Word): WriteItem {
   const n = Math.min(level, 4);
-  const wd = reviewWord ?? pick(wordsBySyllables(n).length ? wordsBySyllables(n) : WORDS, rng);
+  const pool = PICTURABLE.filter((x) => x.syllables.length === n);
+  const wd = reviewWord && reviewWord.pictureOk ? reviewWord : pick(pool.length ? pool : PICTURABLE, rng);
   return {
     kind: 'write',
     id: uid('ep'),
     mode: 'palabra',
     word: wd,
     prompt: 'Escribí el nombre del dibujo como sepas',
-    speak: 'Escribí el nombre de este dibujo, como sepas. No hay forma equivocada de empezar.',
+    // Se dice la palabra para que todos escriban la misma (el dibujo podría nombrarse de otra forma).
+    speak: `Escribí, como sepas, la palabra: ${wd.text}. No hay una forma equivocada de empezar.`,
     showPic: true,
   };
 }
@@ -518,102 +599,104 @@ function secuencias(level: number, support: number, rng: Rng): SequenceItem {
   };
 }
 
-const CATEGORY_LABEL: Record<Word['category'], string> = {
+// Solo categorías sin ambigüedad para chicos, con dibujos claros.
+type Cat = 'animal' | 'comida' | 'transporte' | 'cielo';
+const CATS: Cat[] = ['animal', 'comida', 'transporte', 'cielo'];
+const CATEGORY_LABEL: Record<Cat, string> = {
   animal: 'animales',
   comida: 'comidas',
-  naturaleza: 'cosas de la naturaleza',
-  objeto: 'objetos',
   transporte: 'transportes',
+  cielo: 'cosas que se ven en el cielo',
 };
+/** "los animales", "las comidas"… */
+const CATEGORY_WITH_ART: Record<Cat, string> = {
+  animal: 'los animales',
+  comida: 'las comidas',
+  transporte: 'los transportes',
+  cielo: 'las cosas que se ven en el cielo',
+};
+const inCat = (c: Cat) => PICTURABLE.filter((x) => x.category === c);
 
 const RIDDLES = [
   { text: 'Tiene caparazón y camina muy despacio.', answer: 'tortuga', others: ['conejo', 'pez'] },
   { text: 'Es amarilla, larga y se pela para comerla.', answer: 'banana', others: ['pera', 'tomate'] },
   { text: 'Tiene trompa larga y orejas enormes.', answer: 'elefante', others: ['oso', 'gato'] },
-  { text: 'Sale de noche y alumbra el cielo.', answer: 'luna', others: ['sol', 'nube'] },
   { text: 'Tiene dos ruedas y pedales.', answer: 'bicicleta', others: ['auto', 'barco'] },
   { text: 'Tiene alas de colores y antes fue oruga.', answer: 'mariposa', others: ['pato', 'ballena'] },
+  { text: 'Vive en el agua, es enorme y echa agua por la cabeza.', answer: 'ballena', others: ['foca', 'pato'] },
+  { text: 'Tiene orejas largas y le encantan las zanahorias.', answer: 'conejo', others: ['ratón', 'gato'] },
 ];
 
 function categorias(level: number, support: number, rng: Rng): ChoiceItem {
   if (level >= 4) {
     const r = pick(RIDDLES, rng);
     const opts = [r.answer, ...r.others.slice(0, support >= 1 ? 1 : 2)].map(wordById);
+    const ans = wordById(r.answer);
     return {
       kind: 'choice',
       id: uid('ca'),
-      instruction: 'Adiviná: ¿de qué hablo?',
-      speak: `Adiviná de qué hablo: ${r.text}`,
-      stimulus: { text: r.text },
+      instruction: `Adiviná: ${r.text}`,
+      speak: `Adiviná: ${r.text}`,
+      stimulus: {},
       options: shuffle(opts, rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
       correctId: r.answer,
+      showPicLabels: true,
+      optionAudio: true,
       hints: [
-        { text: 'Te lo digo otra vez.', speak: r.text, revealText: true },
+        { text: 'Te lo digo otra vez.', speak: r.text },
         { text: 'Saqué una opción.', removeOption: true },
       ],
-      explainCorrect: `Sí: ${r.text} ¡Es ${art(wordById(r.answer))} ${r.answer}!`,
-      explainWrong: (o) => `${capital(art(wordById(o.id)))} ${o.id} no coincide con todas las pistas. Escuchemos otra vez.`,
+      explainCorrect: `¡Sí! Es ${det(ans)} ${ans.text}.`,
+      explainWrong: (o) => {
+        const x = wordById(o.id);
+        return `${capital(det(x))} ${x.text} no coincide con todas las pistas. Escuchemos otra vez.`;
+      },
       followUpOral: 'Ahora inventá vos una adivinanza y decila en voz alta.',
     };
   }
-  const cats = (['animal', 'comida', 'transporte', 'naturaleza', 'objeto'] as Word['category'][]).filter(
-    (c) => WORDS.filter((x) => x.category === c).length >= 3,
-  );
-  const near: Record<string, Word['category'][]> = {
-    animal: ['comida', 'transporte'],
-    comida: ['animal', 'objeto'],
-    transporte: ['objeto', 'animal'],
-    naturaleza: ['animal', 'comida'],
-    objeto: ['transporte', 'naturaleza'],
-  };
-  const far: Record<string, Word['category'][]> = {
-    animal: ['transporte', 'objeto'],
-    comida: ['transporte', 'naturaleza'],
-    transporte: ['comida', 'animal'],
-    naturaleza: ['objeto', 'transporte'],
-    objeto: ['animal', 'comida'],
-  };
-  const cat = pick(cats, rng);
-  const oddCat = pick(level === 1 ? far[cat] : near[cat], rng);
-  const group = shuffle(WORDS.filter((x) => x.category === cat), rng).slice(0, support >= 1 ? 2 : 3);
-  const odd = pick(WORDS.filter((x) => x.category === oddCat), rng);
+  const cat = pick(CATS, rng);
+  const otherCats = CATS.filter((c) => c !== cat);
+  const group = shuffle(inCat(cat), rng).slice(0, support >= 1 ? 2 : 3);
   if (level === 3) {
-    // ¿Cuál va con el grupo?
-    const candidates = [pick(WORDS.filter((x) => x.category === cat && !group.includes(x)), rng) ?? group[0], odd];
-    if (support === 0) candidates.push(pick(WORDS.filter((x) => x.category === far[cat][0] && x.id !== odd.id), rng));
-    const correct = candidates[0];
+    const same = pick(inCat(cat).filter((x) => !group.includes(x)), rng);
+    const diffCats = shuffle(otherCats, rng).slice(0, support >= 1 ? 1 : 2);
+    const candidates = [same, ...diffCats.map((c) => pick(inCat(c), rng))];
     return {
       kind: 'choice',
       id: uid('ca'),
       instruction: '¿Cuál va con este grupo?',
-      speak: `Mirá el grupo: ${group.map((g) => g.text).join(', ')}. ¿Cuál va con ellos?`,
+      speak: `Mirá el grupo: ${group.map((g) => g.text).join(', ')}. ¿Cuál va con este grupo?`,
       stimulus: { pic: group.map((g) => g.pic).join(' ') },
       options: shuffle(candidates, rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
-      correctId: correct.id,
+      correctId: same.id,
+      showPicLabels: true,
+      optionAudio: true,
       hints: [
-        { text: `Son ${CATEGORY_LABEL[cat]}.`, speak: `Pensá: todos son ${CATEGORY_LABEL[cat]}.` },
+        { text: `Todos son ${CATEGORY_LABEL[cat]}.`, speak: `Pensá: todos son ${CATEGORY_LABEL[cat]}.` },
         { text: 'Saqué una opción.', removeOption: true },
       ],
-      explainCorrect: `Sí: ${correct.text} también es de los ${CATEGORY_LABEL[cat]}.`,
-      explainWrong: (o) => `${o.label} es de otro grupo. El grupo es de ${CATEGORY_LABEL[cat]}.`,
+      explainCorrect: `Sí: ${det(same)} ${same.text} también va con ${CATEGORY_WITH_ART[cat]}.`,
+      explainWrong: (o) => `${capital(o.label ?? '')} es de otro grupo. Este grupo es de ${CATEGORY_LABEL[cat]}.`,
       followUpOral: 'Nombrá en voz alta otro que también vaya en el grupo.',
     };
   }
-  const items = shuffle([...group, odd], rng);
+  const odd = pick(inCat(pick(otherCats, rng)), rng);
   return {
     kind: 'choice',
     id: uid('ca'),
     instruction: '¿Cuál no va con los demás?',
     speak: '¿Cuál no va con los demás?',
     stimulus: {},
-    options: items.map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
+    options: shuffle([...group, odd], rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
     correctId: odd.id,
+    showPicLabels: true,
+      optionAudio: true,
     hints: [
       { text: `Hay ${group.length} que son ${CATEGORY_LABEL[cat]}.`, speak: `Hay ${group.length} que son ${CATEGORY_LABEL[cat]}.` },
       { text: 'Saqué una opción.', removeOption: true },
     ],
-    explainCorrect: `Sí: ${odd.text} no es de los ${CATEGORY_LABEL[cat]}.`,
-    explainWrong: (o) => `${o.label} es de los ${CATEGORY_LABEL[cat]}, como varios más. Buscá el que es distinto.`,
+    explainCorrect: `Sí: ${det(odd)} ${odd.text} no va, porque los demás son ${CATEGORY_LABEL[cat]}.`,
+    explainWrong: (o) => `${capital(o.label ?? '')} sí va: es de ${CATEGORY_WITH_ART[cat]}, como los demás. Buscá el que es distinto.`,
     followUpOral: 'Contá en voz alta por qué no va.',
   };
 }
@@ -749,12 +832,25 @@ export interface GenContext {
   usedStories?: Set<string>;
 }
 
+/** Para quienes todavía no leen: la voz nombra los dibujos después de la consigna. */
+function withOptionNames(it: Item): Item {
+  if (it.kind !== 'choice' || !it.optionAudio) return it;
+  const names = it.options.map((o) => o.speak).filter(Boolean);
+  return names.length ? { ...it, speak: `${it.speak} Los dibujos son: ${names.join(', ')}.` } : it;
+}
+
 export function generateItem(activity: ActivityId, level: number, support: number, ctx: GenContext = {}): Item {
+  return withOptionNames(generateItemRaw(activity, level, support, ctx));
+}
+
+function generateItemRaw(activity: ActivityId, level: number, support: number, ctx: GenContext = {}): Item {
   const rng = ctx.rng ?? Math.random;
-  const review = ctx.reviewWords?.length ? wordById(pick(ctx.reviewWords, rng)) : undefined;
+  // Solo palabras que existen en el léxico actual (los datos guardados pueden ser de versiones anteriores).
+  const validReview = (ctx.reviewWords ?? []).filter((id) => WORDS.some((x) => x.id === id));
+  const review = validReview.length ? wordById(pick(validReview, rng)) : undefined;
   switch (activity) {
     case 'letraSonido':
-      return letraSonido(level, support, rng);
+      return letraSonido(level, support, rng, ctx.index ?? 0);
     case 'sonidoInicial':
       return sonidoInicial(level, support, rng);
     case 'armarPalabra':

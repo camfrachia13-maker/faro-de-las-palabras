@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from './store';
 import { Icon, IconName, Lumi, Mood } from './art';
 import { MIN_TOUCH, radius } from './theme';
-import { onSpeakingChange, speak } from '../services/voice';
+import { onSpeakingChange, speak, unlockAudio } from '../services/voice';
 import { DEFAULT_SETTINGS } from '../domain/profile';
 
 export function useSettings() {
@@ -99,7 +99,10 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, style, b
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      onPress={onPress}
+      onPress={() => {
+        unlockAudio();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.btn,
         {
@@ -158,7 +161,7 @@ export function Card({ children, style, onPress, label, selected }: { children: 
   };
   if (!onPress) return <View style={[s, style]}>{children}</View>;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [s, style, { opacity: pressed ? 0.85 : 1 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => { unlockAudio(); onPress(); }} style={({ pressed }) => [s, style, { opacity: pressed ? 0.85 : 1 }]}>
       {children}
     </Pressable>
   );
