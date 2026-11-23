@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from './store';
 import { Icon, IconName, Lumi, Mood } from './art';
 import { MIN_TOUCH, radius } from './theme';
-import { onSpeakingChange, speak, unlockAudio } from '../services/voice';
+import { onSpeakingChange, speak, stopSpeaking, unlockAudio } from '../services/voice';
+import { playSfx, Sfx } from '../services/sfx';
+import { Illustration } from './illustrations';
 import { DEFAULT_SETTINGS } from '../domain/profile';
 
 export function useSettings() {
@@ -40,6 +42,9 @@ export function Txt({ children, size = 18, weight = '400', color, style, align, 
   );
 }
 
+/** Bloquea el scroll de la pantalla mientras se arrastra una pieza. */
+export const ScrollLockCtx = React.createContext<(locked: boolean) => void>(() => {});
+
 export function Screen({ children, title, onBack, right, scroll = true, bg, padded = true }: {
   children: React.ReactNode;
   title?: string;
@@ -50,8 +55,10 @@ export function Screen({ children, title, onBack, right, scroll = true, bg, padd
   padded?: boolean;
 }) {
   const { theme } = useStore();
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const inner = <View style={[styles.inner, padded && { padding: 16 }]}>{children}</View>;
   return (
+    <ScrollLockCtx.Provider value={(locked: boolean) => setScrollEnabled(!locked)}>
     <SafeAreaView style={{ flex: 1, backgroundColor: bg ?? theme.bg }} edges={['top', 'bottom', 'left', 'right']}>
       {(title || onBack || right) && (
         <View style={[styles.topbar]}>
@@ -69,13 +76,14 @@ export function Screen({ children, title, onBack, right, scroll = true, bg, padd
         </View>
       )}
       {scroll ? (
-        <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
+        <ScrollView scrollEnabled={scrollEnabled} contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }} keyboardShouldPersistTaps="handled">
           {inner}
         </ScrollView>
       ) : (
         <View style={{ flex: 1, alignItems: 'center' }}>{inner}</View>
       )}
     </SafeAreaView>
+    </ScrollLockCtx.Provider>
   );
 }
 
@@ -92,6 +100,7 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, style, b
   const { theme } = useStore();
   const bg = { primary: theme.sea, secondary: theme.surface, ghost: 'transparent', danger: theme.coral, light: theme.light }[kind];
   const fg = { primary: '#FFFFFF', secondary: theme.ink, ghost: theme.sea, danger: '#FFFFFF', light: theme.ink }[kind];
+  const depth = { primary: theme.seaDeep, secondary: '#D8C7A6', ghost: 'transparent', danger: '#8E3A27', light: '#C98F1E' }[kind];
   return (
     <Pressable
       accessibilityRole="button"
@@ -108,9 +117,12 @@ export function Btn({ label, onPress, kind = 'primary', icon, disabled, style, b
         {
           backgroundColor: bg,
           borderColor: kind === 'secondary' ? theme.border : kind === 'ghost' ? 'transparent' : bg,
+          // relieve de "botón de juego": el borde inferior más oscuro se achica al apretar
+          borderBottomWidth: kind === 'ghost' ? 2 : pressed ? 2 : 5,
+          borderBottomColor: kind === 'ghost' ? 'transparent' : depth,
+          marginTop: pressed && kind !== 'ghost' ? 3 : 0,
           minHeight: big ? 68 : MIN_TOUCH,
-          opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
+          opacity: disabled ? 0.45 : 1,
         },
         style,
       ]}
@@ -167,58 +179,185 @@ export function Card({ children, style, onPress, label, selected }: { children: 
   );
 }
 
-/** Pictograma provisorio (emoji del sistema) en un marco. */
+/** Ilustración(es) original(es). Varias claves unidas con "+" forman una escena (p. ej. "gato+pera"). */
 export function Pic({ pic, size = 64, label }: { pic: string; size?: number; label?: string }) {
+  const keys = pic.split('+').filter(Boolean);
+  if (keys.length === 1) return <Illustration name={keys[0]} size={size} label={label} />;
+  const each = keys.length > 2 ? size * 0.62 : size * 0.8;
   return (
-    <Text accessibilityLabel={label} accessible={!!label} style={{ fontSize: size, lineHeight: size * 1.2, textAlign: 'center' }}>
-      {pic}
-    </Text>
-  );
-}
-
-/** Lumi con globo de diálogo. Lee el texto en voz alta si está activada la lectura automática. */
-export function GuideBubble({ text, mood = 'feliz', size = 96, autoSpeak = true, speakText }: { text: string; mood?: Mood; size?: number; autoSpeak?: boolean; speakText?: string }) {
-  const { theme } = useStore();
-  const settings = useSettings();
-  const say = useSpeak();
-  useEffect(() => {
-    if (autoSpeak && settings.autoRead) say(speakText ?? text);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%' }}>
-      <Lumi size={size} mood={mood} animate={!settings.reduceMotion} />
-      <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: radius.lg, borderWidth: 2, borderColor: theme.border, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <View style={{ flex: 1 }}>
-          <Txt size={17}>{text}</Txt>
+    <View accessible={!!label} accessibilityLabel={label} style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center' }}>
+      {keys.map((k, i) => (
+        <View key={`${k}${i}`} style={{ marginLeft: i ? -each * 0.12 : 0 }}>
+          <Illustration name={k} size={each} />
         </View>
-        <IconBtn icon="speaker" label="Escuchar" compact onPress={() => say(speakText ?? text)} />
-      </View>
+      ))}
     </View>
   );
 }
 
+/** true si hay que evitar animaciones: ajuste del perfil o preferencia del sistema. */
+export function useReduceMotion() {
+  const settings = useSettings();
+  const [os, setOs] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled?.()
+      .then(setOs)
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', setOs);
+    return () => sub?.remove?.();
+  }, []);
+  return settings.reduceMotion || os;
+}
+
+export function useSfx() {
+  const settings = useSettings();
+  return (name: Sfx) => playSfx(name, settings);
+}
+
+/**
+ * Lumi con globo de diálogo. Lee el texto si la lectura automática está activa.
+ * Mueve la boca solo mientras su propia voz suena. "Omitir" corta la voz y
+ * cierra el globo; tocando a Lumi se vuelve a escuchar.
+ */
+export function GuideBubble({ text, mood = 'feliz', size = 96, autoSpeak = true, speakText, dismissible = true }: {
+  text: string;
+  mood?: Mood;
+  size?: number;
+  autoSpeak?: boolean;
+  speakText?: string;
+  dismissible?: boolean;
+}) {
+  const { theme } = useStore();
+  const settings = useSettings();
+  const reduce = useReduceMotion();
+  const speaking = useSpeaking();
+  const [mine, setMine] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const say = useSpeak();
+  const talk = () => {
+    setMine(true);
+    say(speakText ?? text, () => setMine(false));
+  };
+  useEffect(() => {
+    setHidden(false);
+    if (autoSpeak && settings.autoRead && !settings.guideBrief) talk();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+  useEffect(() => {
+    if (!speaking) setMine(false);
+  }, [speaking]);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' }}>
+      {size > 0 && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Lumi: volver a escuchar" onPress={() => { setHidden(false); talk(); }}>
+          <Lumi size={size} mood={mood} animate={!reduce} talking={mine && speaking} />
+        </Pressable>
+      )}
+      {!hidden ? (
+        <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: radius.lg, borderWidth: 2, borderColor: theme.border, paddingVertical: 10, paddingLeft: 14, paddingRight: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ flex: 1 }}>
+            <Txt size={17}>{text}</Txt>
+          </View>
+          <View>
+            <IconBtn icon="speaker" label="Escuchar" compact onPress={talk} />
+            {dismissible && (
+              <IconBtn
+                icon="close"
+                label="Omitir"
+                compact
+                onPress={() => {
+                  stopSpeaking();
+                  setHidden(true);
+                }}
+              />
+            )}
+          </View>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
+    </View>
+  );
+}
+
+/** Festejo breve: unas pocas estrellas que salen y se van (una sola vez, sin destellos). */
+export function Burst({ show }: { show: boolean }) {
+  const reduce = useReduceMotion();
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!show || reduce) return;
+    v.setValue(0);
+    Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+  }, [show, reduce, v]);
+  if (!show || reduce) return null;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' }}>
+      {[-1, -0.4, 0.3, 1].map((dir, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: 'absolute',
+            opacity: v.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
+            transform: [
+              { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, dir * 110] }) },
+              { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -50 - (i % 2) * 30] }) },
+              { scale: v.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.4, 1.1, 0.8] }) },
+            ],
+          }}
+        >
+          <Illustration name="estrella" size={34} />
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Devolución: Lumi reacciona (celebra breve, da aliento o explica) y lo dice en voz alta.
+ * Los festejos son cortos y variados; los errores se acompañan sin retar.
+ */
 export function Feedback({ kind, text, children }: { kind: 'ok' | 'retry' | 'info'; text: string; children?: React.ReactNode }) {
   const { theme } = useStore();
+  const reduce = useReduceMotion();
+  const speaking = useSpeaking();
+  const sfx = useSfx();
   const bg = kind === 'ok' ? theme.okBg : kind === 'retry' ? theme.warnBg : theme.infoBg;
   const say = useSpeak();
+  const [mine, setMine] = useState(false);
+  const slide = useRef(new Animated.Value(reduce ? 1 : 0)).current;
   useEffect(() => {
-    say(text);
+    sfx(kind === 'ok' ? 'acierto' : kind === 'retry' ? 'otra' : 'tap');
+    setMine(true);
+    say(text, () => setMine(false));
+    if (!reduce) Animated.timing(slide, { toValue: 1, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
   return (
-    <View accessibilityLiveRegion="polite" style={{ backgroundColor: bg, borderRadius: radius.lg, padding: 14, gap: 10, borderWidth: 2, borderColor: theme.border }}>
+    <Animated.View
+      accessibilityLiveRegion="polite"
+      style={{
+        backgroundColor: bg,
+        borderRadius: radius.lg,
+        padding: 14,
+        gap: 10,
+        borderWidth: 2,
+        borderColor: kind === 'ok' ? theme.ok : theme.border,
+        opacity: slide,
+        transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+      }}
+    >
+      <Burst show={kind === 'ok'} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Lumi size={56} mood={kind === 'ok' ? 'celebra' : 'pensando'} animate={false} />
+        <Lumi size={64} mood={kind === 'ok' ? 'celebra' : kind === 'retry' ? 'aliento' : 'pensando'} animate={!reduce} talking={mine && speaking} />
         <View style={{ flex: 1 }}>
           <Txt size={17} weight="600">
             {text}
           </Txt>
         </View>
-        <IconBtn icon="speaker" label="Escuchar" compact onPress={() => say(text)} />
+        <IconBtn icon="speaker" label="Escuchar" compact onPress={() => { setMine(true); say(text, () => setMine(false)); }} />
       </View>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 

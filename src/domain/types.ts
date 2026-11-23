@@ -123,6 +123,10 @@ export interface Settings {
   highContrast: boolean;
   letterCase: 'mayuscula' | 'minuscula';
   recordingAllowed: boolean;
+  /** Efectos de sonido (encaje, acierto). */
+  sfx: boolean;
+  /** Lumi habla menos: solo la consigna, sin comentarios extra. */
+  guideBrief: boolean;
 }
 
 export interface AvatarConfig {
@@ -163,6 +167,8 @@ export interface Profile {
   sessions: SessionLog[];
   settings: Settings;
   adultHypothesis?: { value: WritingHypothesis; note: string; at: string };
+  /** Actividades cuya demostración ya se vio. */
+  demosSeen?: ActivityId[];
 }
 
 export interface AppIndex {

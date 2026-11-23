@@ -4,7 +4,7 @@ import type { ActivityId, Area } from '../domain/types';
 export const APP_NAME = 'El Faro de las Palabras';
 
 export interface Character {
-  id: 'lumi' | 'tito' | 'mara' | 'bruno';
+  id: 'lumi' | 'tito' | 'mara' | 'bruno' | 'pipa';
   name: string;
   role: string;
   story: string;
@@ -12,6 +12,13 @@ export interface Character {
 }
 
 export const CHARACTERS: Record<Character['id'], Character> = {
+  pipa: {
+    id: 'pipa',
+    name: 'Pipa',
+    role: 'Zorrita que escucha todo el bosque',
+    story: 'Pipa tiene las orejas más grandes del archipiélago. Junta los sonidos que se perdieron con la tormenta.',
+    color: '#E8833A',
+  },
   lumi: {
     id: 'lumi',
     name: 'Lumi',
@@ -47,54 +54,84 @@ export interface Zone {
   name: string;
   area: Area;
   host: Character['id'];
+  /** Misión del lugar en una frase corta, para leer y escuchar. */
+  mission: string;
   description: string;
   activities: ActivityId[];
   unlockAtMissions: number; // se desbloquea por participar, no por aciertos
   pos: { x: number; y: number }; // posición relativa en el mapa (0..1)
+  color: string;
 }
 
 export const ZONES: Zone[] = [
   {
-    id: 'sonidos',
-    name: 'Isla de los Sonidos',
+    id: 'bosque-sonidos',
+    name: 'Bosque de los Sonidos',
     area: 'lectura',
-    host: 'lumi',
-    description: 'Letras, sonidos y palabras para leer.',
-    activities: ['letraSonido', 'sonidoInicial', 'armarPalabra', 'lecturaPalabras'],
+    host: 'pipa',
+    mission: 'Ayudá a Pipa a encontrar los sonidos y las letras que se perdieron.',
+    description: 'Sonidos, letras y rimas.',
+    activities: ['letraSonido', 'sonidoInicial'],
     unlockAtMissions: 0,
-    pos: { x: 0.27, y: 0.24 },
+    pos: { x: 0.27, y: 0.15 },
+    color: '#4E9F6B',
   },
   {
-    id: 'bahia',
-    name: 'Bahía de las Cartas',
+    id: 'isla-palabras',
+    name: 'Isla de las Palabras',
+    area: 'lectura',
+    host: 'lumi',
+    mission: 'Armá y leé palabras para que el faro vuelva a brillar.',
+    description: 'Armar y leer palabras y oraciones.',
+    activities: ['armarPalabra', 'lecturaPalabras'],
+    unlockAtMissions: 0,
+    pos: { x: 0.74, y: 0.3 },
+    color: '#2D5D8A',
+  },
+  {
+    id: 'taller-escritura',
+    name: 'Taller de Escritura',
     area: 'escritura',
     host: 'tito',
+    mission: 'Escribí palabras y cartas que Tito va a repartir por las islas.',
     description: 'Escribir palabras, mensajes y cartas.',
     activities: ['escrituraPalabras', 'mensajes', 'escrituraLibre'],
     unlockAtMissions: 0,
-    pos: { x: 0.73, y: 0.46 },
+    pos: { x: 0.27, y: 0.48 },
+    color: '#C85A3F',
   },
   {
-    id: 'bosque',
-    name: 'Bosque de los Cuentos',
+    id: 'biblioteca-historias',
+    name: 'Biblioteca de Historias',
     area: 'oral',
     host: 'mara',
-    description: 'Escuchar, contar y ordenar historias.',
+    mission: 'Escuchá, ordená y contá las historias que guarda Mara.',
+    description: 'Cuentos, secuencias y grupos.',
     activities: ['comprension', 'secuencias', 'categorias'],
     unlockAtMissions: 2,
-    pos: { x: 0.27, y: 0.68 },
+    pos: { x: 0.73, y: 0.64 },
+    color: '#5B7FD6',
   },
   {
-    id: 'torre',
-    name: 'Torre del Faro',
+    id: 'laboratorio',
+    name: 'Laboratorio de Memoria y Atención',
     area: 'cognitivo',
     host: 'bruno',
-    description: 'Desafíos para pensar, recordar y planificar.',
+    mission: 'Resolvé los desafíos de Bruno para arreglar la lámpara.',
+    description: 'Memoria, reglas que cambian y caminos.',
     activities: ['memoria', 'flexibilidad', 'planificacion'],
     unlockAtMissions: 4,
-    pos: { x: 0.73, y: 0.86 },
+    pos: { x: 0.33, y: 0.84 },
+    color: '#8A63C2',
   },
 ];
+
+/** Faroles del camino: uno se enciende por cada misión jugada (no por aciertos). */
+export const PATH_LANTERNS = 14;
+
+/** Celebraciones breves y variadas. Describen lo que pasó, sin exagerar. */
+export const CELEBRATIONS = ['¡Eso es!', '¡Bien pensado!', '¡Lo lograste!', '¡Muy bien!', '¡Sí, señor!', '¡Exacto!'];
+export const ENCOURAGE = ['Casi. Probemos de nuevo.', 'Todavía no. Miremos otra vez.', 'Sigamos buscando juntos.'];
 
 /** Páginas de la historia del faro: se recuperan una por misión terminada. */
 export const STORY_PAGES: string[] = [
@@ -141,6 +178,6 @@ export const GUIDE_LINES = {
   explorationIntro:
     'Antes de salir de viaje, quiero conocerte un poco. Vamos a jugar con letras, palabras y dibujos. Si algo no lo sabés, podés tocar "Saltar". ¡No pasa nada!',
   explorationEnd: 'Gracias por jugar conmigo. Ya armé tu mapa de viaje.',
-  mapHint: 'Tocá una isla para ver sus misiones.',
+  mapHint: 'Tocá un lugar del mapa para jugar.',
   goodbye: (alias: string) => `Guardé todo lo que hiciste, ${alias}. Cuando quieras, seguimos la aventura.`,
 };

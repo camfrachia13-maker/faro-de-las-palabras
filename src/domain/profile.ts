@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS: Settings = {
   highContrast: false,
   letterCase: 'mayuscula',
   recordingAllowed: false,
+  sfx: true,
+  guideBrief: false,
 };
 
 export const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;

@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, TextInput, View } from 'react-native';
 import Svg, { Path, Ellipse, Circle } from 'react-native-svg';
 import { ACTIVITIES } from '../../content/activities';
-import { AVATAR_BASES, AVATAR_COLORS, CHARACTERS, GUIDE_LINES, REWARDS, STORY_PAGES, ZONES } from '../../content/world';
+import { AVATAR_BASES, AVATAR_COLORS, CELEBRATIONS, CHARACTERS, GUIDE_LINES, PATH_LANTERNS, REWARDS, STORY_PAGES } from '../../content/world';
 import { createProfile } from '../../domain/profile';
+import { PlaceArt } from './WorldMap';
 import type { ActivityId } from '../../domain/types';
 import { Avatar, CharacterArt, Icon, Lighthouse, Lumi } from '../art';
-import { Btn, Card, GuideBubble, IconBtn, Row, Screen, Txt, useSpeak } from '../components';
+import { Btn, Card, GuideBubble, IconBtn, Pic, Row, Screen, Txt, useReduceMotion, useSfx, useSpeak } from '../components';
 import { MissionSummary, useStore } from '../store';
 import { radius } from '../theme';
 
@@ -21,7 +22,10 @@ export function ProfilesScreen() {
   return (
     <Screen right={<IconBtn icon="lock" label="Adultos" compact onPress={() => push({ name: 'gate', then: { name: 'adult' } })} />} title=" ">
       <View style={{ alignItems: 'center', gap: 6 }}>
-        <Lighthouse size={96} lit={0.6} />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#DDEFF7', borderRadius: 28, paddingHorizontal: 18, paddingTop: 8, borderWidth: 2, borderColor: theme.border }}>
+          <PlaceArt zoneId="isla-palabras" width={150} />
+          <Lumi size={92} mood="feliz" animate={false} />
+        </View>
         <Txt size={28} weight="800" align="center" accessibilityRole="header" color={theme.seaDeep}>
           El Faro de las Palabras
         </Txt>
@@ -163,152 +167,69 @@ export function WelcomeScreen() {
   );
 }
 
-export function MapScreen() {
-  const { current, push, theme } = useStore();
-  const { width } = useWindowDimensions();
-  const p = current!;
-  const w = Math.min(width, 560) - 32;
-  const h = w * 1.1;
-  return (
-    <Screen
-      title="Mapa del archipiélago"
-      right={<IconBtn icon="door" label="Terminar por hoy" compact onPress={() => push({ name: 'goodbye' })} />}
-    >
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row gap={8}>
-          <Avatar {...p.avatar} size={52} />
-          <Txt size={18} weight="700">
-            {p.alias}
-          </Txt>
-        </Row>
-        <Row gap={4} style={{ backgroundColor: theme.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: theme.border }}>
-          <Icon name="shell" size={22} color={theme.lightInk} />
-          <Txt size={16} weight="700">
-            {p.rewards.shells}
-          </Txt>
-        </Row>
-      </Row>
-      <GuideBubble size={64} text={GUIDE_LINES.mapHint} />
-      {!p.exploration && (
-        <Btn label="Jugar a conocernos con Lumi" icon="play" kind="light" onPress={() => push({ name: 'exploration' })} />
-      )}
-      <View style={{ width: w, height: h, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: '#9CCBE0', borderWidth: 3, borderColor: theme.seaDeep }}>
-        <Svg width={w} height={h} viewBox="0 0 100 110" style={{ position: 'absolute' }}>
-          {[15, 35, 55, 75, 95].map((y) => (
-            <Path key={y} d={`M0 ${y} q12 -3 25 0 t25 0 t25 0 t25 0`} stroke="#B9DDED" strokeWidth={0.8} fill="none" />
-          ))}
-          <Path d="M27 26 Q50 30 73 51 M27 26 Q22 50 27 75 M73 51 Q78 72 73 95" stroke="#F6EBD6" strokeWidth={1.2} strokeDasharray="2 2" fill="none" />
-          {ZONES.map((z) => (
-            <Ellipse key={z.id} cx={z.pos.x * 100} cy={z.pos.y * 110} rx={17} ry={11} fill="#E9D7A8" stroke="#B9A072" strokeWidth={0.8} />
-          ))}
-          <Circle cx={50} cy={56} r={6} fill="#F6EBD6" />
-        </Svg>
-        <View style={{ position: 'absolute', left: w * 0.5 - 22, top: h * 0.5 - 40 }} accessibilityLabel="El faro">
-          <Lighthouse size={44} lit={p.rewards.storyPages / STORY_PAGES.length} />
-        </View>
-        {ZONES.map((z) => {
-          const locked = p.missionsCompleted < z.unlockAtMissions;
-          const bw = Math.min(150, w * 0.42);
-          return (
-            <Pressable
-              key={z.id}
-              accessibilityRole="button"
-              accessibilityLabel={locked ? `${z.name}, se abre después de ${z.unlockAtMissions} misiones` : z.name}
-              onPress={() => push({ name: 'zone', zoneId: z.id })}
-              style={({ pressed }) => ({
-                position: 'absolute',
-                left: z.pos.x * w - bw / 2,
-                top: z.pos.y * h - 52,
-                width: bw,
-                alignItems: 'center',
-                backgroundColor: locked ? 'rgba(255,255,255,0.7)' : theme.surface,
-                borderRadius: radius.lg,
-                borderWidth: 2,
-                borderColor: locked ? theme.border : theme.seaDeep,
-                padding: 6,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <CharacterArt id={z.host} size={46} />
-              <Text style={{ fontSize: theme.fs(14), fontWeight: '800', color: theme.ink, textAlign: 'center' }}>{z.name}</Text>
-              {locked && (
-                <Row gap={4}>
-                  <Icon name="lock" size={16} color={theme.inkSoft} />
-                  <Text style={{ fontSize: theme.fs(12), color: theme.inkSoft }}>Jugá {z.unlockAtMissions - p.missionsCompleted} misión{z.unlockAtMissions - p.missionsCompleted > 1 ? 'es' : ''}</Text>
-                </Row>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
-      <Row wrap>
-        <Btn label="Mi historia" icon="eye" kind="secondary" onPress={() => push({ name: 'story' })} style={{ flex: 1 }} />
-        <Btn label="Mi ropero" icon="pencil" kind="secondary" onPress={() => push({ name: 'wardrobe' })} style={{ flex: 1 }} />
-      </Row>
-      <Btn label="Terminar por hoy" icon="door" kind="ghost" onPress={() => push({ name: 'goodbye' })} />
-    </Screen>
-  );
-}
-
-export function ZoneScreen({ zoneId }: { zoneId: string }) {
-  const { current, push, back, updateCurrent, theme } = useStore();
-  const p = current!;
-  const z = ZONES.find((x) => x.id === zoneId)!;
-  const host = CHARACTERS[z.host];
-  const locked = p.missionsCompleted < z.unlockAtMissions;
+/** Hilera de faroles del camino: los encendidos son misiones jugadas. El último encendido aparece con un pequeño destello. */
+function LanternRow({ lit, highlightLast }: { lit: number; highlightLast?: boolean }) {
+  const reduce = useReduceMotion();
+  const pop = useRef(new Animated.Value(reduce || !highlightLast ? 1 : 0)).current;
   useEffect(() => {
-    if (!locked && !p.zonesVisited.includes(z.id)) updateCurrent((x) => ({ ...x, zonesVisited: [...x.zonesVisited, z.id] }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const acts = z.activities.filter((a) => p.skills[a].enabled);
+    if (reduce || !highlightLast) return;
+    Animated.timing(pop, { toValue: 1, duration: 500, delay: 300, easing: Easing.out(Easing.back(2)), useNativeDriver: true }).start();
+  }, [reduce, highlightLast, pop]);
   return (
-    <Screen title={z.name} onBack={back}>
-      <Card style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-        <CharacterArt id={z.host} size={90} />
-        <View style={{ flex: 1, gap: 4 }}>
-          <Txt size={18} weight="800">
-            {host.name}
-          </Txt>
-          <Txt size={15} color={theme.inkSoft}>
-            {host.role}
-          </Txt>
-        </View>
-      </Card>
-      <GuideBubble
-        size={60}
-        text={locked ? `Esta isla se abre cuando juegues ${z.unlockAtMissions - p.missionsCompleted} misión${z.unlockAtMissions - p.missionsCompleted > 1 ? 'es' : ''} más. ¡Cualquier misión cuenta!` : host.story}
-      />
-      {!locked &&
-        acts.map((a: ActivityId) => {
-          const d = ACTIVITIES[a];
-          return (
-            <Card key={a} label={d.kidTitle} onPress={() => push({ name: 'mission', activityId: a })} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Text style={{ fontSize: 40 }}>{d.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Txt size={19} weight="700">
-                  {d.kidTitle}
-                </Txt>
-              </View>
-              <Icon name="play" size={28} color={theme.sea} />
-            </Card>
-          );
-        })}
-      {!locked && acts.length === 0 && <Txt>Un adulto pausó estas misiones por ahora.</Txt>}
-    </Screen>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }} accessibilityLabel={`Faroles encendidos: ${lit} de ${PATH_LANTERNS}`}>
+      {Array.from({ length: PATH_LANTERNS }).map((_, i) => {
+        const on = i < lit;
+        const isNew = highlightLast && i === lit - 1;
+        return (
+          <Animated.View key={i} style={{ opacity: on ? 1 : 0.3, transform: isNew ? [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] : [] }}>
+            <Pic pic="farol" size={isNew ? 40 : 26} />
+          </Animated.View>
+        );
+      })}
+    </View>
   );
 }
 
 export function MissionEndScreen({ activityId, summary }: { activityId: ActivityId; summary: MissionSummary }) {
-  const { replace, reset, theme } = useStore();
+  const { replace, reset, theme, current } = useStore();
+  const sfx = useSfx();
+  const [cheer] = useState(() => CELEBRATIONS[Math.floor(Math.random() * CELEBRATIONS.length)]);
+  useEffect(() => {
+    sfx('premio');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const lines: string[] = [];
   if (summary.autonomo) lines.push(`Resolviste ${summary.autonomo} sin ayuda.`);
   if (summary.conApoyo) lines.push(`Resolviste ${summary.conApoyo} con pistas o probando otra vez.`);
   if (summary.abierta) lines.push(`Guardé ${summary.abierta === 1 ? 'tu producción' : `tus ${summary.abierta} producciones`}.`);
   if (summary.noResuelto) lines.push(`${summary.noResuelto === 1 ? 'Una quedó' : `${summary.noResuelto} quedaron`} para practicar otro día.`);
-  const text = `¡Terminaste la misión! ${lines.join(' ')}`;
+  const text = `${cheer} Terminaste la misión. ${lines.join(' ')}`;
+  const lit = Math.min(PATH_LANTERNS, current?.missionsCompleted ?? 0);
   return (
     <Screen title="¡Misión cumplida!">
-      <GuideBubble mood="celebra" size={110} text={text} />
+      <GuideBubble mood="celebra" size={100} text={text} />
+      <Card style={{ gap: 10, alignItems: 'center', backgroundColor: theme.warnBg }}>
+        <Txt size={17} weight="800" align="center">
+          Se encendió un farol del camino
+        </Txt>
+        <LanternRow lit={lit} highlightLast />
+        {summary.newPage && (
+          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+            <Pic pic="libro" size={48} />
+            <Txt size={16} style={{ flex: 1 }}>
+              Recuperaste una página de la historia: “{summary.newPage}”
+            </Txt>
+          </View>
+        )}
+        {summary.newReward && current && (
+          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+            <Avatar {...current.avatar} accessory={REWARDS.find((r) => r.name === summary.newReward)?.id ?? null} size={56} />
+            <Txt size={16} weight="700" style={{ flex: 1 }}>
+              Nuevo en tu ropero: {summary.newReward}
+            </Txt>
+          </View>
+        )}
+      </Card>
       {summary.strategies.length > 0 && (
         <Card>
           <Txt size={17} weight="700">
@@ -321,20 +242,6 @@ export function MissionEndScreen({ activityId, summary }: { activityId: Activity
           ))}
         </Card>
       )}
-      <Card style={{ backgroundColor: theme.warnBg, gap: 6 }}>
-        <Row>
-          <Icon name="shell" size={28} color={theme.lightInk} />
-          <Txt size={17} weight="700">
-            Ganaste un caracol por participar.
-          </Txt>
-        </Row>
-        {summary.newPage && (
-          <Txt size={16}>
-            Recuperaste una página de la historia: “{summary.newPage}”
-          </Txt>
-        )}
-        {summary.newReward && <Txt size={16}>¡Nuevo accesorio en tu ropero: {summary.newReward}!</Txt>}
-      </Card>
       <Btn label="Otra misión igual" icon="play" big onPress={() => replace({ name: 'mission', activityId })} />
       <Btn label="Volver al mapa" kind="secondary" onPress={() => reset({ name: 'map' })} />
     </Screen>
@@ -417,8 +324,9 @@ export function WardrobeScreen() {
 }
 
 export function GoodbyeScreen() {
-  const { current, endSession, reset, back } = useStore();
+  const { current, endSession, reset, back, sessionId } = useStore();
   const [closed, setClosed] = useState(false);
+  const [closedSession, setClosedSession] = useState<string | null>(null);
   const p = current!;
   if (!closed)
     return (
@@ -429,6 +337,7 @@ export function GoodbyeScreen() {
           icon="door"
           big
           onPress={() => {
+            setClosedSession(sessionId);
             endSession();
             setClosed(true);
           }}
@@ -436,12 +345,34 @@ export function GoodbyeScreen() {
         <Btn label="Seguir jugando" kind="secondary" onPress={back} />
       </Screen>
     );
+  const today = p.sessions.find((x) => x.id === closedSession)?.missions ?? 0;
+  const lit = Math.min(PATH_LANTERNS, p.missionsCompleted);
   return (
     <Screen>
-      <View style={{ alignItems: 'center', marginTop: 30 }}>
-        <Lumi size={150} mood="celebra" />
+      <View style={{ alignItems: 'center', marginTop: 20 }}>
+        <Lumi size={130} mood="feliz" />
       </View>
-      <GuideBubble size={0} text={GUIDE_LINES.goodbye(p.alias)} />
+      <GuideBubble
+        size={0}
+        dismissible={false}
+        text={
+          today > 0
+            ? `Hoy jugaste ${today} misión${today === 1 ? '' : 'es'} y el camino quedó más iluminado. ${GUIDE_LINES.goodbye(p.alias)}`
+            : GUIDE_LINES.goodbye(p.alias)
+        }
+      />
+      <Card style={{ alignItems: 'center', gap: 8 }}>
+        <Txt size={16} weight="800">
+          Tu camino de faroles
+        </Txt>
+        <LanternRow lit={lit} />
+        <Row gap={8}>
+          <Lighthouse size={60} lit={p.rewards.storyPages / STORY_PAGES.length} />
+          <Txt size={15} style={{ flex: 1 }}>
+            Páginas de la historia recuperadas: {p.rewards.storyPages} de {STORY_PAGES.length}.
+          </Txt>
+        </Row>
+      </Card>
       <Btn label="Elegir perfil" big onPress={() => reset({ name: 'profiles' })} />
     </Screen>
   );

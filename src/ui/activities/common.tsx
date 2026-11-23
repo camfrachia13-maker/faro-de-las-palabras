@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useAudioPlayer, useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import type { InputMode, Outcome, WritingSample } from '../../domain/types';
-import { Btn, IconBtn, Row, Txt, useSettings, useSpeak } from '../components';
+import { Btn, IconBtn, Row, Txt, useReduceMotion, useSettings, useSpeak, useSpeaking } from '../components';
+import { Icon, Lumi } from '../art';
 import { useStore } from '../store';
 import { radius } from '../theme';
 
@@ -26,7 +27,11 @@ export interface RunnerProps<T> {
   exploration?: boolean;
 }
 
-/** Marco común: consigna visible y hablada, repetir, pista, saltar. */
+/**
+ * Marco común de cada consigna: Lumi la presenta (texto + voz), y siempre están
+ * Repetir, Pista y Saltar. Lumi mueve la boca solo mientras habla y cambia de
+ * expresión al dar una pista.
+ */
 export function ActivityFrame({ instruction, speakText, onRepeat, hintLabel, onHint, hintDisabled, onSkip, hintText, children, autoSpeak = true }: {
   instruction: string;
   speakText?: string;
@@ -41,32 +46,55 @@ export function ActivityFrame({ instruction, speakText, onRepeat, hintLabel, onH
 }) {
   const { theme } = useStore();
   const settings = useSettings();
+  const reduce = useReduceMotion();
+  const speaking = useSpeaking();
+  const [mine, setMine] = useState(false);
   const say = useSpeak();
+  const talk = () => {
+    setMine(true);
+    say(speakText ?? instruction, () => setMine(false));
+  };
   useEffect(() => {
-    if (autoSpeak && settings.autoRead) say(speakText ?? instruction);
+    if (autoSpeak && settings.autoRead) talk();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instruction, speakText]);
+  useEffect(() => {
+    if (!speaking) setMine(false);
+  }, [speaking]);
   return (
     <View style={{ gap: 14 }}>
-      <View style={{ backgroundColor: theme.surface, borderRadius: radius.lg, borderWidth: 2, borderColor: theme.border, padding: 12, gap: 10 }}>
-        <Txt size={20} weight="700" accessibilityRole="header">
-          {instruction}
-        </Txt>
+      <View style={{ backgroundColor: theme.surface, borderRadius: radius.xl, borderWidth: 2, borderColor: theme.border, padding: 12, gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Lumi: repetir la consigna"
+            onPress={() => {
+              onRepeat?.();
+              talk();
+            }}
+          >
+            <Lumi size={60} mood={hintText ? 'aliento' : 'curiosa'} animate={!reduce} talking={mine && speaking} />
+          </Pressable>
+          <Txt size={20} weight="800" accessibilityRole="header" style={{ flex: 1 }}>
+            {instruction}
+          </Txt>
+        </View>
         <Row gap={8} wrap>
           <IconBtn
             icon="speaker"
             label="Repetir"
             onPress={() => {
               onRepeat?.();
-              say(speakText ?? instruction);
+              talk();
             }}
           />
           {onHint && <IconBtn icon="hint" label={hintLabel ?? 'Pista'} onPress={onHint} disabled={hintDisabled} />}
           {onSkip && <IconBtn icon="skip" label="Saltar" onPress={onSkip} />}
         </Row>
         {hintText ? (
-          <View style={{ backgroundColor: theme.warnBg, borderRadius: radius.md, padding: 10 }} accessibilityLiveRegion="polite">
-            <Txt size={17} weight="600" color={theme.lightInk}>
+          <View style={{ backgroundColor: theme.warnBg, borderRadius: radius.md, padding: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }} accessibilityLiveRegion="polite">
+            <Icon name="hint" size={24} color={theme.lightInk} />
+            <Txt size={17} weight="700" color={theme.lightInk} style={{ flex: 1 }}>
               {hintText}
             </Txt>
           </View>

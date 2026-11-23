@@ -6,6 +6,7 @@ export interface Word {
   id: string;
   text: string;
   syllables: string[];
+  /** Clave de la ilustración. */
   pic: string;
   category: Category;
   gender: 'm' | 'f';
@@ -13,11 +14,12 @@ export interface Word {
   pictureOk: boolean;
 }
 
-const w = (text: string, syl: string, pic: string, category: Category, gender: 'm' | 'f', pictureOk = true): Word => ({
+// `pic` es la clave de la ilustración (src/ui/illustrations.tsx); coincide con la palabra.
+const w = (text: string, syl: string, _unused: string, category: Category, gender: 'm' | 'f', pictureOk = true): Word => ({
   id: text,
   text,
   syllables: syl.split('-'),
-  pic,
+  pic: text,
   category,
   gender,
   pictureOk,
@@ -25,57 +27,57 @@ const w = (text: string, syl: string, pic: string, category: Category, gender: '
 
 export const WORDS: Word[] = [
   // 1 sílaba
-  w('sol', 'sol', '☀️', 'cielo', 'm'),
-  w('pan', 'pan', '🍞', 'comida', 'm'),
-  w('mar', 'mar', '🌊', 'cielo', 'm', false),
-  w('flor', 'flor', '🌸', 'planta', 'f'),
-  w('tren', 'tren', '🚂', 'transporte', 'm'),
-  w('pez', 'pez', '🐟', 'animal', 'm'),
-  w('luz', 'luz', '💡', 'objeto', 'f', false),
+  w('sol', 'sol', '', 'cielo', 'm'),
+  w('pan', 'pan', '', 'comida', 'm'),
+  w('mar', 'mar', '', 'cielo', 'm', false),
+  w('flor', 'flor', '', 'planta', 'f'),
+  w('tren', 'tren', '', 'transporte', 'm'),
+  w('pez', 'pez', '', 'animal', 'm'),
+  w('luz', 'luz', '', 'objeto', 'f', false),
   // 2 sílabas
-  w('gato', 'ga-to', '🐱', 'animal', 'm'),
-  w('pato', 'pa-to', '🦆', 'animal', 'm'),
-  w('luna', 'lu-na', '🌙', 'cielo', 'f'),
-  w('casa', 'ca-sa', '🏠', 'lugar', 'f'),
-  w('nube', 'nu-be', '☁️', 'cielo', 'f'),
-  w('sapo', 'sa-po', '🐸', 'animal', 'm'),
-  w('foca', 'fo-ca', '🦭', 'animal', 'f'),
-  w('vaca', 'va-ca', '🐄', 'animal', 'f'),
-  w('mono', 'mo-no', '🐒', 'animal', 'm'),
-  w('dado', 'da-do', '🎲', 'objeto', 'm'),
-  w('lupa', 'lu-pa', '🔍', 'objeto', 'f'),
-  w('pera', 'pe-ra', '🍐', 'comida', 'f'),
-  w('uva', 'u-va', '🍇', 'comida', 'f'),
-  w('oso', 'o-so', '🐻', 'animal', 'm'),
-  w('isla', 'is-la', '🏝️', 'lugar', 'f'),
-  w('auto', 'au-to', '🚗', 'transporte', 'm'),
-  w('moto', 'mo-to', '🏍️', 'transporte', 'f'),
-  w('barco', 'bar-co', '⛵', 'transporte', 'm'),
-  w('llave', 'lla-ve', '🔑', 'objeto', 'f'),
-  w('rosa', 'ro-sa', '🌹', 'planta', 'f'),
-  w('nariz', 'na-riz', '👃', 'objeto', 'f'),
-  w('ratón', 'ra-tón', '🐭', 'animal', 'm'),
-  w('delfín', 'del-fín', '🐬', 'animal', 'm'),
+  w('gato', 'ga-to', '', 'animal', 'm'),
+  w('pato', 'pa-to', '', 'animal', 'm'),
+  w('luna', 'lu-na', '', 'cielo', 'f'),
+  w('casa', 'ca-sa', '', 'lugar', 'f'),
+  w('nube', 'nu-be', '', 'cielo', 'f'),
+  w('sapo', 'sa-po', '', 'animal', 'm'),
+  w('foca', 'fo-ca', '', 'animal', 'f'),
+  w('vaca', 'va-ca', '', 'animal', 'f'),
+  w('mono', 'mo-no', '', 'animal', 'm'),
+  w('dado', 'da-do', '', 'objeto', 'm'),
+  w('lupa', 'lu-pa', '', 'objeto', 'f'),
+  w('pera', 'pe-ra', '', 'comida', 'f'),
+  w('uva', 'u-va', '', 'comida', 'f'),
+  w('oso', 'o-so', '', 'animal', 'm'),
+  w('isla', 'is-la', '', 'lugar', 'f'),
+  w('auto', 'au-to', '', 'transporte', 'm'),
+  w('moto', 'mo-to', '', 'transporte', 'f'),
+  w('barco', 'bar-co', '', 'transporte', 'm'),
+  w('llave', 'lla-ve', '', 'objeto', 'f'),
+  w('rosa', 'ro-sa', '', 'planta', 'f'),
+  w('nariz', 'na-riz', '', 'objeto', 'f'),
+  w('ratón', 'ra-tón', '', 'animal', 'm'),
+  w('delfín', 'del-fín', '', 'animal', 'm'),
   // 3 sílabas
-  w('pelota', 'pe-lo-ta', '⚽', 'objeto', 'f'),
-  w('tomate', 'to-ma-te', '🍅', 'comida', 'm'),
-  w('conejo', 'co-ne-jo', '🐰', 'animal', 'm'),
-  w('camisa', 'ca-mi-sa', '👕', 'objeto', 'f'),
-  w('zapato', 'za-pa-to', '👟', 'objeto', 'm'),
-  w('manzana', 'man-za-na', '🍎', 'comida', 'f'),
-  w('galleta', 'ga-lle-ta', '🍪', 'comida', 'f'),
-  w('ballena', 'ba-lle-na', '🐋', 'animal', 'f'),
-  w('tortuga', 'tor-tu-ga', '🐢', 'animal', 'f'),
-  w('estrella', 'es-tre-lla', '⭐', 'cielo', 'f'),
-  w('banana', 'ba-na-na', '🍌', 'comida', 'f'),
-  w('caracol', 'ca-ra-col', '🐌', 'animal', 'm'),
-  w('avión', 'a-vión', '✈️', 'transporte', 'm'),
+  w('pelota', 'pe-lo-ta', '', 'objeto', 'f'),
+  w('tomate', 'to-ma-te', '', 'comida', 'm'),
+  w('conejo', 'co-ne-jo', '', 'animal', 'm'),
+  w('camisa', 'ca-mi-sa', '', 'objeto', 'f'),
+  w('zapato', 'za-pa-to', '', 'objeto', 'm'),
+  w('manzana', 'man-za-na', '', 'comida', 'f'),
+  w('galleta', 'ga-lle-ta', '', 'comida', 'f'),
+  w('ballena', 'ba-lle-na', '', 'animal', 'f'),
+  w('tortuga', 'tor-tu-ga', '', 'animal', 'f'),
+  w('estrella', 'es-tre-lla', '', 'cielo', 'f'),
+  w('banana', 'ba-na-na', '', 'comida', 'f'),
+  w('caracol', 'ca-ra-col', '', 'animal', 'm'),
+  w('avión', 'a-vión', '', 'transporte', 'm'),
   // 4 sílabas
-  w('mariposa', 'ma-ri-po-sa', '🦋', 'animal', 'f'),
-  w('elefante', 'e-le-fan-te', '🐘', 'animal', 'm'),
-  w('cocodrilo', 'co-co-dri-lo', '🐊', 'animal', 'm'),
-  w('bicicleta', 'bi-ci-cle-ta', '🚲', 'transporte', 'f'),
-  w('dinosaurio', 'di-no-sau-rio', '🦕', 'animal', 'm'),
+  w('mariposa', 'ma-ri-po-sa', '', 'animal', 'f'),
+  w('elefante', 'e-le-fan-te', '', 'animal', 'm'),
+  w('cocodrilo', 'co-co-dri-lo', '', 'animal', 'm'),
+  w('bicicleta', 'bi-ci-cle-ta', '', 'transporte', 'f'),
+  w('dinosaurio', 'di-no-sau-rio', '', 'animal', 'm'),
 ];
 
 export const wordById = (id: string) => {

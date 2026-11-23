@@ -112,7 +112,7 @@ function checkChoice(id: string, it: ChoiceItem, ctx: string) {
     assert.notEqual(rest[0], oddCat, `${ctx}: el distinto es de la misma categoría`);
   }
   if (id === 'categorias' && /va con este grupo/.test(it.instruction)) {
-    const groupCats = it.stimulus.pic!.split(' ').map((p) => byPic.get(p)!.category);
+    const groupCats = it.stimulus.pic!.split('+').map((p) => byPic.get(p)!.category);
     assert.equal(new Set(groupCats).size, 1, `${ctx}: grupo mezclado`);
     assert.equal(wordById(it.correctId).category, groupCats[0], `${ctx}: la correcta no es del grupo`);
     for (const o of others) assert.notEqual(wordById(o.id).category, groupCats[0], `${ctx}: ${o.id} también es del grupo`);
@@ -159,4 +159,46 @@ test('léxico: dibujos únicos y palabras bien formadas', () => {
   const pics = WORDS.map((w) => w.pic);
   assert.equal(new Set(pics).size, pics.length, 'dos palabras con el mismo dibujo');
   for (const w of WORDS) assert.equal(norm(w.syllables.join('')), norm(w.text), `sílabas de ${w.text}`);
+});
+
+// ---------- Ilustraciones: todo dibujo referido existe y no quedan emojis ----------
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { ACTIVITIES as ACTS } from '../src/content/activities';
+
+const ILLU_SRC = readFileSync(join(__dirname, '../src/ui/illustrations.tsx'), 'utf8');
+const ILLU_KEYS = new Set([...ILLU_SRC.matchAll(/^ {2}'?([\wáéíóúñ]+)'?: \(\) =>/gm)].map((m) => m[1]));
+
+test('cada dibujo usado en el contenido existe en la biblioteca de ilustraciones', () => {
+  const used = new Set<string>();
+  const add = (pic?: string) => pic && pic.split('+').forEach((k) => used.add(k));
+  WORDS.forEach((w) => add(w.pic));
+  Object.values(ACTS).forEach((a) => add(a.icon));
+  STORIES.forEach((s) => {
+    s.art.forEach(add);
+    s.questions.forEach((q) => q.options.forEach((o) => add(o.pic)));
+  });
+  for (const id of ACTIVITY_IDS)
+    for (let lvl = 1; lvl <= ACTIVITIES[id].maxLevel; lvl++)
+      for (let k = 0; k < 40; k++) {
+        const it = generateItem(id, lvl, 0, { index: k });
+        if (it.kind === 'choice') {
+          add(it.stimulus.pic);
+          it.options.forEach((o) => add(o.pic));
+        }
+        if (it.kind === 'sequence') it.cards.forEach((c) => add(c.pic));
+        if (it.kind === 'memory') it.symbols.forEach((s) => add(s.pic));
+        if (it.kind === 'build' || it.kind === 'write') add(it.word?.pic);
+      }
+  const missing = [...used].filter((k) => !ILLU_KEYS.has(k));
+  assert.deepEqual(missing, [], `Faltan ilustraciones: ${missing.join(', ')}`);
+});
+
+test('no quedan emojis usados como ilustración en el código de la app', () => {
+  const files: string[] = [];
+  const walk = (d: string) => readdirSync(d).forEach((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : files.push(join(d, f))));
+  walk(join(__dirname, '../src'));
+  const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+  const offenders = files.filter((f) => /\.tsx?$/.test(f) && readFileSync(f, 'utf8').split('\n').some((line) => emoji.test(line) && !line.trim().startsWith('/') && !line.trim().startsWith('*')));
+  assert.deepEqual(offenders, []);
 });

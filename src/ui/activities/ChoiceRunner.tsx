@@ -4,6 +4,7 @@ import type { ChoiceItem, Option } from '../../domain/items';
 import { ActivityFrame, OralRecorder, RunnerProps, strategyNotes } from './common';
 import { Btn, Feedback, IconBtn, Pic, Txt, caseText, useSettings, useSpeak } from '../components';
 import { ShapeGlyph, Icon } from '../art';
+import { GameTile } from './game';
 import { useStore } from '../store';
 import { radius } from '../theme';
 
@@ -67,7 +68,7 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
   const visible = item.options.filter((o) => !removed.includes(o.id));
   const list = item.optionLayout === 'list';
   const cols = list ? 1 : visible.length <= 2 ? 2 : visible.length === 4 && width < 500 ? 2 : Math.min(visible.length, 3);
-  const cardW = list ? '100%' : `${Math.floor(100 / cols) - 3}%`;
+  const cardW = list ? '100%' : `${Math.floor(100 / cols) - 4}%`;
   const correct = item.options.find((o) => o.id === item.correctId)!;
   const st = item.stimulus;
 
@@ -92,7 +93,7 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
         )}
         {st.pic && (
           <View style={{ backgroundColor: theme.surface, borderRadius: radius.xl, paddingHorizontal: 22, paddingVertical: 8, borderWidth: 2, borderColor: theme.border }}>
-            <Pic pic={st.pic} size={st.pic.length > 4 ? 56 : 84} label={st.sayWord} />
+            <Pic pic={st.pic} size={st.pic.includes('+') ? 110 : 120} label={st.sayWord} />
           </View>
         )}
         {st.sayWord && (
@@ -129,7 +130,12 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
         )}
         {st.story && (
           <View style={{ backgroundColor: theme.surface, borderRadius: radius.lg, padding: 16, borderWidth: 2, borderColor: theme.border, width: '100%', gap: 6 }}>
-            <Txt size={18} weight="700">
+            {st.story.art && st.story.art.length > 0 && (
+              <View style={{ alignItems: 'center' }}>
+                <Pic pic={st.story.art.join('+')} size={120} />
+              </View>
+            )}
+            <Txt size={19} weight="800" color={theme.seaDeep}>
               {st.story.title}
             </Txt>
             {st.story.sentences.map((s, i) => (
@@ -170,48 +176,34 @@ export function ChoiceRunner({ item, onDone, exploration }: RunnerProps<ChoiceIt
         )}
       </View>
 
-      {/* Opciones */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }} accessibilityRole="radiogroup">
+      {/* Opciones: fichas que reaccionan al tocarlas */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }} accessibilityRole="radiogroup">
         {visible.map((o) => {
           const isTried = tried.includes(o.id);
           const isCorrectShown = (phase === 'ok' || phase === 'model') && o.id === item.correctId;
+          const picSize = list ? 40 : o.pic && o.pic.includes('+') ? 64 : width < 380 ? 70 : 84;
           return (
-            <Pressable
+            <GameTile
               key={o.id}
-              accessibilityRole="button"
-              accessibilityLabel={(o.label ?? o.speak ?? 'opción') + (isTried ? ', ya probada' : '') + (isCorrectShown ? ', correcta' : '')}
+              state={isCorrectShown ? 'correct' : isTried ? 'tried' : 'idle'}
+              label={o.label ?? o.speak ?? 'opción'}
               disabled={isTried || phase === 'ok' || phase === 'model'}
               onPress={() => choose(o)}
-              style={({ pressed }) => ({
-                width: cardW as any,
-                minHeight: list ? 64 : 110,
-                backgroundColor: isCorrectShown ? theme.okBg : theme.surface,
-                borderRadius: radius.lg,
-                borderWidth: isCorrectShown ? 4 : 2,
-                borderColor: isCorrectShown ? theme.ok : theme.border,
-                borderStyle: isTried ? 'dashed' : 'solid',
-                alignItems: 'center',
-                justifyContent: list ? 'flex-start' : 'center',
-                flexDirection: list ? 'row' : 'column',
-                padding: 10,
-                gap: 8,
-                opacity: isTried ? 0.5 : pressed ? 0.8 : 1,
-                transform: [{ scale: pressed && !settings.reduceMotion ? 0.97 : 1 }],
-              })}
+              style={{ width: cardW as any, minHeight: list ? 64 : 120 }}
             >
-              {o.glyph && <ShapeGlyph shape={o.glyph.shape} color={o.glyph.color} size={64} />}
-              {o.pic && <Pic pic={o.pic} size={list ? 32 : o.pic.length > 4 ? 40 : 56} />}
-              {o.label && (!o.pic || list || item.stimulus.template || o.glyph || item.showPicLabels) ? (
-                <Text style={{ fontSize: theme.fs(o.label.length <= 2 ? 44 : list ? 19 : 18), fontWeight: '700', color: theme.ink, textAlign: list ? 'left' : 'center', flexShrink: 1 }}>
-                  {o.label.length <= 2 || item.showPicLabels ? caseText(o.label, settings.letterCase) : o.label}
-                </Text>
-              ) : null}
-              {isTried && <Icon name="close" size={20} color={theme.coral} />}
-              {isCorrectShown && <Icon name="check" size={24} color={theme.ok} />}
-              {o.speak && !list && item.optionAudio && (
-                <IconBtn icon="speaker" label={`Escuchar ${o.speak}`} compact onPress={() => say(o.speak!)} />
-              )}
-            </Pressable>
+              <View style={{ flexDirection: list ? 'row' : 'column', alignItems: 'center', gap: 8, width: '100%', justifyContent: list ? 'flex-start' : 'center' }}>
+                {o.glyph && <ShapeGlyph shape={o.glyph.shape} color={o.glyph.color} size={64} />}
+                {o.pic && <Pic pic={o.pic} size={picSize} />}
+                {o.label && (!o.pic || list || item.stimulus.template || o.glyph || item.showPicLabels) ? (
+                  <Text style={{ fontSize: theme.fs(o.label.length <= 2 ? 44 : list ? 19 : 17), fontWeight: '800', color: theme.ink, textAlign: list ? 'left' : 'center', flexShrink: 1 }}>
+                    {o.label.length <= 2 || item.showPicLabels ? caseText(o.label, settings.letterCase) : o.label}
+                  </Text>
+                ) : null}
+                {isTried && <Icon name="close" size={20} color={theme.coral} />}
+                {isCorrectShown && <Icon name="check" size={26} color={theme.ok} />}
+                {o.speak && !list && item.optionAudio && <IconBtn icon="speaker" label={`Escuchar ${o.speak}`} compact onPress={() => say(o.speak!)} />}
+              </View>
+            </GameTile>
           );
         })}
       </View>

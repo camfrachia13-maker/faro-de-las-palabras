@@ -5,15 +5,14 @@ import { StoreProvider, useStore } from './src/ui/store';
 import {
   CreateProfileScreen,
   GoodbyeScreen,
-  MapScreen,
   MissionEndScreen,
   ProfilesScreen,
   StoryScreen,
   WardrobeScreen,
   WelcomeScreen,
-  ZoneScreen,
 } from './src/ui/screens/Child';
 import { ExplorationScreen, MissionScreen } from './src/ui/screens/Mission';
+import { MapScreen, ZoneScreen } from './src/ui/screens/WorldMap';
 import { AboutScreen, AdultHomeScreen, AdultProfileScreen, GateScreen } from './src/ui/screens/Adult';
 
 function Router() {

@@ -11,6 +11,23 @@ Aplicación educativa para niños de 6 a 11 años que acompaña el aprendizaje d
 | Mara (gaviota) | Junta cuentos y escucha relatos | Bosque de los Cuentos (oral y comprensión) |
 | Bruno (pulpo) | Arma desafíos para arreglar la lámpara | Torre del Faro (cognitivo) |
 
+## Experiencia visual e interactiva
+
+- **Ilustraciones propias:** 89 dibujos vectoriales en `src/ui/illustrations.tsx`, sin emojis, más los personajes de `src/ui/art.tsx`. Son livianos (código, no imágenes) y nítidos en cualquier pantalla.
+- **Personajes:**
+  - Lumi presenta cada consigna y tiene expresiones (curiosa, alegre, espera, aliento, celebra). Mueve la boca solo mientras suena su voz.
+  - Sus intervenciones se pueden omitir; el ajuste "Lumi habla menos" deja solo consignas y devoluciones.
+  - Anfitriones de cada lugar: Pipa (Bosque de los Sonidos), Lumi (Isla de las Palabras), Tito (Taller de Escritura), Mara (Biblioteca de Historias) y Bruno (Laboratorio de Memoria y Atención).
+- **Mapa ilustrado:** cinco lugares con su paisaje, su misión y entrada animada una sola vez. El camino tiene 14 faroles que se encienden uno por misión jugada (por participar, no por acertar). El botón "Seguir jugando" retoma la última actividad.
+- **Juego:**
+  - Las fichas saltan al acertar y se sacuden suave al no coincidir.
+  - Las letras y las viñetas se pueden arrastrar o tocar.
+  - El dibujo "cobra vida" al completar la palabra.
+  - Cada actividad muestra una demostración breve la primera vez, que se puede volver a ver con la lamparita.
+  - Los festejos son cortos y variados, y el cierre de sesión resume el día.
+- **Efectos de sonido:** breves y suaves (`assets/sfx`), se pueden desactivar. **No hay música de fondo.**
+- **Movimiento:** "Reducir movimiento" (o la preferencia del sistema) quita saltos, festejos y la animación de las demostraciones. Nada se mueve en forma constante.
+
 ## Tecnología
 
 - **Expo SDK 58 + React Native 0.88 + TypeScript (strict).** Una sola base de código para iPhone, iPad y Android, con vista previa web.
@@ -99,7 +116,7 @@ Cualquier contenido nuevo tiene que pasar este test.
 ## Qué se verificó en este entorno
 
 - TypeScript estricto sin errores.
-- 29 tests (lógica y validador de contenido): reglas de adaptación, análisis de escritura, generación válida de consignas en todas las actividades, niveles y apoyos (repetido 15 veces por la aleatoriedad), recompensas, informes y exploración.
+- 31 tests (lógica, validador de contenido y control de ilustraciones): reglas de adaptación, análisis de escritura, generación válida de consignas en todas las actividades, niveles y apoyos (repetido 15 veces por la aleatoriedad), recompensas, informes y exploración.
 - Build web (`expo export -p web`) y recorrido automatizado en Chrome con viewport de iPhone (390×844): crear perfil, bienvenida, exploración completa, mapa, misiones de las 13 actividades, cierre de sesión, puerta parental, informes y persistencia tras recargar. No hubo errores de consola.
 
 ## Qué falta verificar en dispositivos reales

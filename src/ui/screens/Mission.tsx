@@ -12,7 +12,9 @@ import { BuildRunner } from '../activities/BuildRunner';
 import { WriteRunner } from '../activities/WriteRunner';
 import { MemoryRunner, PathRunner, SequenceRunner } from '../activities/OtherRunners';
 import type { RunResult } from '../activities/common';
-import { Btn, GuideBubble, Screen, Txt } from '../components';
+import { Btn, GuideBubble, IconBtn, Screen, Txt } from '../components';
+import { Demo, demoKindFor } from '../activities/game';
+import { PlaceArt } from './WorldMap';
 import { useStore, MissionSummary } from '../store';
 import { radius } from '../theme';
 
@@ -64,19 +66,31 @@ function makeSample(sessionId: string, activityId: ActivityId, item: Item, r: Ru
   return { ...r.sample, id: newId(), sessionId, at: new Date().toISOString(), context: item.context ?? 'mision', activityId };
 }
 
-function Progress({ i, n }: { i: number; n: number }) {
+/** Avance dentro de la misión: piedras del camino (hechas, actual, por venir). */
+function Progress({ i, n, color }: { i: number; n: number; color?: string }) {
   const { theme } = useStore();
   return (
-    <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }} accessibilityLabel={`Consigna ${i + 1} de ${n}`}>
+    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }} accessibilityLabel={`Consigna ${i + 1} de ${n}`}>
       {Array.from({ length: n }).map((_, k) => (
-        <View key={k} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: k < i ? theme.sea : k === i ? theme.light : theme.border, borderWidth: 1, borderColor: theme.seaDeep }} />
+        <View
+          key={k}
+          style={{
+            flex: 1,
+            maxWidth: 44,
+            height: 12,
+            borderRadius: 6,
+            backgroundColor: k < i ? color ?? theme.sea : k === i ? theme.light : theme.surface,
+            borderWidth: 2,
+            borderColor: k === i ? theme.lightInk : theme.border,
+          }}
+        />
       ))}
     </View>
   );
 }
 
 export function MissionScreen({ activityId }: { activityId: ActivityId }) {
-  const { current, sessionId, updateCurrent, back, replace } = useStore();
+  const { current, sessionId, updateCurrent, back, replace, theme } = useStore();
   const p = current!;
   const def = ACTIVITIES[activityId];
   const items = useMemo(() => {
@@ -127,15 +141,38 @@ export function MissionScreen({ activityId }: { activityId: ActivityId }) {
     }
   };
 
+  const zone = zoneOf(activityId);
+  const demoKind = demoKindFor(def.runner, activityId);
+  const firstTime = !(p.demosSeen ?? []).includes(activityId);
+  const [showDemo, setShowDemo] = useState(firstTime);
+  const closeDemo = () => {
+    setShowDemo(false);
+    if (firstTime) updateCurrent((x) => ({ ...x, demosSeen: [...(x.demosSeen ?? []), activityId] }));
+  };
+
   return (
-    <Screen title={def.kidTitle} onBack={back}>
-      <Progress i={i} n={items.length} />
-      {items[i].context === 'repaso' && (
-        <Txt size={15} align="center" weight="600">
-          Repaso: algo que ya conocés, en un lugar nuevo.
-        </Txt>
+    <Screen title={def.kidTitle} onBack={back} right={<IconBtn icon="hint" label="¿Cómo se juega?" compact onPress={() => setShowDemo(true)} />}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: zone.color + '1F', borderRadius: radius.lg, paddingHorizontal: 10, paddingVertical: 4 }}>
+        <PlaceArt zoneId={zone.id} width={56} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Txt size={13} weight="700" color={theme.inkSoft}>
+            {zone.name}
+          </Txt>
+          <Progress i={i} n={items.length} color={zone.color} />
+        </View>
+      </View>
+      {showDemo ? (
+        <Demo kind={demoKind} onClose={closeDemo} />
+      ) : (
+        <>
+          {items[i].context === 'repaso' && (
+            <Txt size={15} align="center" weight="600">
+              Repaso: algo que ya conocés, en un lugar nuevo.
+            </Txt>
+          )}
+          <Runner item={items[i]} onDone={onDone} />
+        </>
       )}
-      <Runner item={items[i]} onDone={onDone} />
     </Screen>
   );
 }

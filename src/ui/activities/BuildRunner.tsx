@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import type { BuildItem } from '../../domain/items';
 import { ActivityFrame, RunnerProps, strategyNotes } from './common';
-import { Btn, Feedback, Pic, Row, caseText, useSettings, useSpeak } from '../components';
+import { Btn, Feedback, Pic, Row, caseText, useReduceMotion, useSettings, useSfx, useSpeak } from '../components';
+import { DragArea, Draggable, DropZone } from './game';
 import { useStore } from '../store';
 import { radius } from '../theme';
 
@@ -30,16 +31,34 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
   const [phase, setPhase] = useState<'build' | 'wrong' | 'ok' | 'model'>('build');
   const [mismatch, setMismatch] = useState<number>(-1);
 
+  const sfx = useSfx();
+  const reduce = useReduceMotion();
+  const alive = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (phase !== 'ok' || reduce) return;
+    // el dibujo "cobra vida" cuando la palabra queda armada
+    Animated.sequence([
+      Animated.timing(alive, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(alive, { toValue: 0, duration: 380, easing: Easing.bounce, useNativeDriver: true }),
+    ]).start();
+  }, [phase, reduce, alive]);
   const fixed = (i: number) => i < item.prefilled;
-  const place = (tileIdx: number) => {
+  /** Coloca una letra: en el casillero indicado (arrastre) o en el primero libre (toque). */
+  const place = (tileIdx: number, slotIdx?: number): boolean => {
+    if (phase === 'ok' || phase === 'model') return false;
     if (phase !== 'build') setPhase('build');
-    const empty = slots.findIndex((s) => s === null);
-    if (empty < 0) return;
+    const target = slotIdx ?? slots.findIndex((x) => x === null);
+    if (target < 0 || target >= slots.length || fixed(target)) return false;
     const ns = [...slots];
-    ns[empty] = { ch: item.tiles[tileIdx], tile: tileIdx };
+    let nu = [...usedTiles, tileIdx];
+    const prev = ns[target];
+    if (prev) nu = nu.filter((t) => t !== prev.tile); // la letra que estaba vuelve a la bandeja
+    ns[target] = { ch: item.tiles[tileIdx], tile: tileIdx };
     setSlots(ns);
-    setUsedTiles([...usedTiles, tileIdx]);
+    setUsedTiles(nu);
+    sfx('encaje');
     say(`la letra ${item.tiles[tileIdx].toUpperCase()}`);
+    return true;
   };
   const remove = (i: number) => {
     const s = slots[i];
@@ -101,6 +120,7 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
   });
 
   return (
+    <DragArea>
     <ActivityFrame
       instruction={item.instruction}
       speakText={item.speak}
@@ -110,7 +130,9 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
       hintDisabled={phase === 'ok' || phase === 'model'}
     >
       <View style={{ alignItems: 'center', gap: 8 }}>
-        <Pic pic={item.word.pic} size={88} label={item.word.text} />
+        <Animated.View style={{ transform: [{ translateY: alive.interpolate({ inputRange: [0, 1], outputRange: [0, -18] }) }, { rotate: alive.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '-6deg', '0deg'] }) }] }}>
+          <Pic pic={item.word.pic} size={120} label={item.word.text} />
+        </Animated.View>
         <Btn
           label="Escuchar por sílabas"
           icon="speaker"
@@ -123,52 +145,58 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }} accessibilityLabel={`Palabra armada: ${built || 'vacía'}`}>
         {slots.map((s, i) => (
-          <Pressable
-            key={i}
-            accessibilityRole="button"
-            accessibilityLabel={s ? `Lugar ${i + 1}: ${s.ch}. Tocá para sacar.` : `Lugar ${i + 1} vacío`}
-            onPress={() => remove(i)}
-            style={{
-              width: slotW,
-              height: slotW * 1.15,
-              borderRadius: radius.sm,
-              borderWidth: 3,
-              borderStyle: s ? 'solid' : 'dashed',
-              borderColor: phase === 'wrong' && i === mismatch ? theme.coral : fixed(i) ? theme.sea : theme.border,
-              backgroundColor: s ? (fixed(i) ? theme.infoBg : theme.surface) : theme.surfaceAlt,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: item.showSyllableGuide && sylBreaks.has(i) ? 10 : 0,
-            }}
-          >
-            <Text style={{ fontSize: theme.fs(Math.min(36, slotW * 0.6)), fontWeight: '800', color: theme.ink }}>{s ? caseText(s.ch, settings.letterCase) : ''}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-        {item.tiles.map((t, k) => {
-          const used = usedTiles.includes(k);
-          return (
+          <DropZone key={i} id={`slot-${i}`}>
             <Pressable
-              key={k}
               accessibilityRole="button"
-              accessibilityLabel={`Letra ${t}${used ? ', ya usada' : ''}`}
-              disabled={used || full || phase === 'ok' || phase === 'model'}
-              onPress={() => place(k)}
-              style={({ pressed }) => ({
-                width: 60,
-                height: 64,
-                borderRadius: radius.md,
-                backgroundColor: used ? theme.surfaceAlt : theme.light,
-                borderWidth: 2,
-                borderColor: used ? theme.border : theme.lightInk,
+              accessibilityLabel={s ? `Lugar ${i + 1}: ${s.ch}. Tocá para sacar.` : `Lugar ${i + 1} vacío`}
+              onPress={() => remove(i)}
+              style={{
+                width: slotW,
+                height: slotW * 1.15,
+                borderRadius: radius.sm,
+                borderWidth: 3,
+                borderStyle: s ? 'solid' : 'dashed',
+                borderColor: phase === 'wrong' && i === mismatch ? theme.coral : phase === 'ok' ? theme.ok : fixed(i) ? theme.sea : theme.border,
+                backgroundColor: phase === 'ok' ? theme.okBg : s ? (fixed(i) ? theme.infoBg : theme.surface) : theme.surfaceAlt,
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: used ? 0.4 : pressed ? 0.8 : 1,
-              })}
+                marginRight: item.showSyllableGuide && sylBreaks.has(i) ? 10 : 0,
+              }}
             >
-              <Text style={{ fontSize: theme.fs(32), fontWeight: '800', color: theme.ink }}>{caseText(t, settings.letterCase)}</Text>
+              <Text style={{ fontSize: theme.fs(Math.min(36, slotW * 0.6)), fontWeight: '800', color: theme.ink }}>{s ? caseText(s.ch, settings.letterCase) : ''}</Text>
             </Pressable>
+          </DropZone>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', backgroundColor: theme.surfaceAlt, borderRadius: radius.lg, padding: 12 }}>
+        {item.tiles.map((t, k) => {
+          const used = usedTiles.includes(k);
+          const blocked = used || phase === 'ok' || phase === 'model';
+          return (
+            <Draggable
+              key={k}
+              label={`Letra ${t}${used ? ', ya usada' : ''}`}
+              disabled={blocked}
+              onTap={() => !full && place(k)}
+              onDrop={(zone) => place(k, Number(zone.replace('slot-', '')))}
+            >
+              <View
+                style={{
+                  width: 60,
+                  height: 66,
+                  borderRadius: radius.md,
+                  backgroundColor: used ? theme.surface : theme.light,
+                  borderWidth: 2,
+                  borderBottomWidth: used ? 2 : 6,
+                  borderColor: used ? theme.border : theme.lightInk,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: used ? 0.35 : 1,
+                }}
+              >
+                <Text style={{ fontSize: theme.fs(32), fontWeight: '800', color: theme.ink }}>{caseText(t, settings.letterCase)}</Text>
+              </View>
+            </Draggable>
           );
         })}
       </View>
@@ -199,5 +227,6 @@ export function BuildRunner({ item, onDone }: RunnerProps<BuildItem>) {
         </Feedback>
       )}
     </ActivityFrame>
+    </DragArea>
   );
 }

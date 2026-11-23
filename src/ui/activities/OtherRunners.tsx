@@ -1,23 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import type { MemoryItem, PathItem, SequenceItem } from '../../domain/items';
 import { bfs, shuffle } from '../../domain/items';
 import { ActivityFrame, OralRecorder, RunnerProps, strategyNotes } from './common';
-import { Btn, Feedback, IconBtn, Pic, Row, Txt, useSettings, useSpeak } from '../components';
+import { Btn, Feedback, IconBtn, Pic, Row, Txt, useReduceMotion, useSettings, useSfx, useSpeak } from '../components';
+import { DragArea, Draggable, DropZone, GameTile } from './game';
 import { Tito } from '../art';
 import { useStore } from '../store';
 import { radius } from '../theme';
 
-// ---------------- Secuencias ----------------
+// ---------------- Secuencias: tira de viñetas ----------------
 export function SequenceRunner({ item, onDone }: RunnerProps<SequenceItem>) {
   const { theme } = useStore();
   const say = useSpeak();
+  const sfx = useSfx();
+  const { width } = useWindowDimensions();
   const shown = useMemo(() => {
     let s = shuffle(item.cards);
     while (s.map((c) => c.id).join() === item.cards.map((c) => c.id).join()) s = shuffle(item.cards);
     return s;
   }, [item.id]);
-  const [order, setOrder] = useState<string[]>([]);
+  const n = item.cards.length;
+  const [frames, setFrames] = useState<(string | null)[]>(() => Array(n).fill(null));
   const [tries, setTries] = useState(0);
   const [hints, setHints] = useState(0);
   const [repeats, setRepeats] = useState(0);
@@ -27,23 +31,35 @@ export function SequenceRunner({ item, onDone }: RunnerProps<SequenceItem>) {
   const [antChoice, setAntChoice] = useState<string | null>(null);
   const resolvedRef = useRef<boolean>(false);
   const antOptions = useMemo(() => (item.anticipate ? shuffle(item.anticipate.options) : []), [item.id]);
+  const card = (id: string) => item.cards.find((c) => c.id === id)!;
+  const frameW = Math.min(110, Math.floor((Math.min(width, 560) - 32 - (n - 1) * 8) / n));
 
-  const tap = (id: string) => {
-    if (phase !== 'order' && phase !== 'wrong') return;
+  const putIn = (cardId: string, frameIdx?: number): boolean => {
+    if (phase !== 'order' && phase !== 'wrong') return false;
     setPhase('order');
-    if (order.includes(id)) {
-      // tocar de nuevo saca la escena y las siguientes
-      setOrder(order.slice(0, order.indexOf(id)));
-    } else setOrder([...order, id]);
+    const target = frameIdx ?? frames.findIndex((f) => f === null);
+    if (target < 0) return false;
+    const nf = frames.map((f) => (f === cardId ? null : f)); // si ya estaba en otro cuadro, se mueve
+    nf[target] = cardId;
+    setFrames(nf);
+    sfx('encaje');
+    say(card(cardId).caption);
+    return true;
   };
+  const takeOut = (i: number) => {
+    if (phase !== 'order' && phase !== 'wrong') return;
+    const nf = [...frames];
+    nf[i] = null;
+    setFrames(nf);
+    setPhase('order');
+  };
+  const full = frames.every((f) => f !== null);
   const check = () => {
     const nt = tries + 1;
     setTries(nt);
-    const ok = order.join() === item.cards.map((c) => c.id).join();
-    if (ok) {
+    if (frames.join() === item.cards.map((c) => c.id).join()) {
       resolvedRef.current = true;
       setPhase('ok');
-      say(item.cards.map((c) => c.caption).join(' '));
     } else setPhase(nt >= 3 ? 'model' : 'wrong');
   };
   const finish = () => {
@@ -51,27 +67,50 @@ export function SequenceRunner({ item, onDone }: RunnerProps<SequenceItem>) {
     onDone({
       resolved: resolvedRef.current,
       ...r,
-      response: order.join('-') + (antChoice ? ` / anticipó: ${antChoice}` : ''),
+      response: frames.join('-') + (antChoice ? ` / anticipó: ${antChoice}` : ''),
       prompt: item.title,
       inputMode: 'toque',
       strategies: strategyNotes(r),
     });
   };
   const afterTell = () => (item.anticipate ? setPhase('anticipate') : finish());
+  const showOrdered = phase === 'ok' || phase === 'model' || phase === 'tell' || phase === 'anticipate' || phase === 'anticipated';
+  const displayFrames = showOrdered ? item.cards.map((c) => c.id) : frames;
+
+  const strip = (
+    <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }} accessibilityLabel="Tira de viñetas">
+      {displayFrames.map((id, i) => (
+        <DropZone key={i} id={`frame-${i}`}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={id ? `Cuadro ${i + 1}: ${card(id).caption}. Tocá para sacar.` : `Cuadro ${i + 1} vacío`}
+            onPress={() => !showOrdered && takeOut(i)}
+            style={{
+              width: frameW,
+              height: frameW * 1.15,
+              borderRadius: radius.md,
+              borderWidth: 3,
+              borderStyle: id ? 'solid' : 'dashed',
+              borderColor: showOrdered && phase !== 'model' ? theme.ok : phase === 'wrong' && id && item.cards[i].id !== id ? theme.coral : theme.ink,
+              backgroundColor: id ? theme.surface : theme.surfaceAlt,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {id && <Pic pic={card(id).pic} size={frameW * 0.8} />}
+            <View style={{ position: 'absolute', top: 4, left: 4, width: 26, height: 26, borderRadius: 13, backgroundColor: theme.seaDeep, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{i + 1}</Text>
+            </View>
+          </Pressable>
+        </DropZone>
+      ))}
+    </View>
+  );
 
   if (phase === 'tell' || phase === 'anticipate' || phase === 'anticipated') {
     return (
       <View style={{ gap: 14 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {item.cards.map((c, i) => (
-            <View key={c.id} style={{ alignItems: 'center', backgroundColor: theme.surface, borderRadius: radius.md, padding: 8, borderWidth: 2, borderColor: theme.border }}>
-              <Txt size={14} weight="700">
-                {i + 1}
-              </Txt>
-              <Pic pic={c.pic} size={40} />
-            </View>
-          ))}
-        </View>
+        {strip}
         {phase === 'tell' && (
           <Feedback kind="info" text="Ahora contalo vos en voz alta, con tus palabras. Podés empezar con: Primero…">
             <OralRecorder />
@@ -88,27 +127,19 @@ export function SequenceRunner({ item, onDone }: RunnerProps<SequenceItem>) {
               <IconBtn icon="speaker" label="Repetir" compact onPress={() => say(item.anticipate!.question)} />
             </Row>
             {antOptions.map((o) => (
-              <Pressable
+              <GameTile
                 key={o.id}
-                accessibilityRole="button"
-                accessibilityLabel={o.label}
+                label={o.label ?? o.id}
+                state={antChoice === o.label ? 'selected' : 'idle'}
                 disabled={phase === 'anticipated'}
                 onPress={() => {
                   setAntChoice(o.label ?? o.id);
                   setPhase('anticipated');
                 }}
-                style={{
-                  minHeight: 60,
-                  borderRadius: radius.md,
-                  borderWidth: antChoice === o.label ? 4 : 2,
-                  borderColor: antChoice === o.label ? theme.seaDeep : theme.border,
-                  backgroundColor: theme.surface,
-                  padding: 12,
-                  justifyContent: 'center',
-                }}
+                style={{ minHeight: 60 }}
               >
                 <Txt size={19}>{o.label}</Txt>
-              </Pressable>
+              </GameTile>
             ))}
             {phase === 'anticipated' && (
               <Feedback
@@ -129,77 +160,63 @@ export function SequenceRunner({ item, onDone }: RunnerProps<SequenceItem>) {
   }
 
   return (
-    <ActivityFrame
-      instruction={item.instruction}
-      speakText={item.speak}
-      onRepeat={() => setRepeats(repeats + 1)}
-      onHint={() => {
-        setHints(hints + 1);
-        const first = item.cards[0];
-        setHintText(`Empieza con: ${first.caption}`);
-        say(`Empieza con: ${first.caption}`);
-        if (order[0] !== first.id) setOrder([first.id]);
-      }}
-      hintDisabled={hints >= 1 || phase === 'ok' || phase === 'model'}
-      hintText={hintText}
-    >
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-        {shown.map((c) => {
-          const pos = order.indexOf(c.id);
-          return (
-            <View key={c.id} style={{ width: '46%', gap: 4 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${c.caption}${pos >= 0 ? `, elegida en el lugar ${pos + 1}` : ''}`}
-                onPress={() => tap(c.id)}
-                style={{
-                  minHeight: 120,
-                  borderRadius: radius.lg,
-                  borderWidth: pos >= 0 ? 4 : 2,
-                  borderColor: pos >= 0 ? theme.seaDeep : theme.border,
-                  backgroundColor: theme.surface,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 8,
-                }}
-              >
-                <Pic pic={c.pic} size={56} />
-                {pos >= 0 && (
-                  <View style={{ position: 'absolute', top: 6, left: 6, width: 36, height: 36, borderRadius: 18, backgroundColor: theme.seaDeep, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 20 }}>{pos + 1}</Text>
+    <DragArea>
+      <ActivityFrame
+        instruction={item.instruction}
+        speakText={item.speak}
+        onRepeat={() => setRepeats(repeats + 1)}
+        onHint={() => {
+          setHints(hints + 1);
+          const first = item.cards[0];
+          setHintText(`Empieza con: ${first.caption}`);
+          say(`Empieza con: ${first.caption}`);
+          putIn(first.id, 0);
+        }}
+        hintDisabled={hints >= 1 || phase === 'ok' || phase === 'model'}
+        hintText={hintText}
+      >
+        {strip}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', backgroundColor: theme.surfaceAlt, borderRadius: radius.lg, padding: 12 }}>
+          {shown.map((c) => {
+            const placed = frames.includes(c.id);
+            return (
+              <View key={c.id} style={{ width: '45%', alignItems: 'center', gap: 2 }}>
+                <Draggable label={`${c.caption}${placed ? ', ya ubicada' : ''}`} disabled={placed || showOrdered} onTap={() => putIn(c.id)} onDrop={(z) => putIn(c.id, Number(z.replace('frame-', '')))}>
+                  <View style={{ width: 120, height: 110, borderRadius: radius.lg, backgroundColor: theme.surface, borderWidth: 2, borderBottomWidth: placed ? 2 : 6, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', opacity: placed ? 0.35 : 1 }}>
+                    <Pic pic={c.pic} size={86} />
                   </View>
-                )}
-              </Pressable>
-              <Btn
-                label="Escuchar"
-                icon="speaker"
-                kind="ghost"
-                onPress={() => {
-                  setListened(true);
-                  say(c.caption);
-                }}
-              />
-            </View>
-          );
-        })}
-      </View>
-      {phase === 'order' && <Btn label="¡Listo!" icon="check" big disabled={order.length !== item.cards.length} onPress={check} />}
-      {phase === 'wrong' && (
-        <Feedback kind="retry" text={order[0] === item.cards[0].id ? 'El comienzo está bien. Pensemos qué pasa después.' : 'Pensemos: ¿qué tiene que pasar antes que todo lo demás?'}>
-          <Btn label="Cambiar el orden" onPress={() => setOrder([])} />
-        </Feedback>
-      )}
-      {phase === 'ok' && (
-        <Feedback kind="ok" text="¡Ese es el orden! Cada escena lleva a la siguiente.">
-          <Btn label="Seguir" big onPress={() => setPhase('tell')} />
-        </Feedback>
-      )}
-      {phase === 'model' && (
-        <Feedback kind="info" text={`El orden es: ${item.cards.map((c) => c.caption).join(' Después, ')}`}>
-          <Btn label="Seguir" big onPress={() => setPhase('tell')} />
-        </Feedback>
-      )}
-    </ActivityFrame>
+                </Draggable>
+                <IconBtn
+                  icon="speaker"
+                  label={`Escuchar: ${c.caption}`}
+                  compact
+                  onPress={() => {
+                    setListened(true);
+                    say(c.caption);
+                  }}
+                />
+              </View>
+            );
+          })}
+        </View>
+        {phase === 'order' && <Btn label="¡Listo!" icon="check" big disabled={!full} onPress={check} />}
+        {phase === 'wrong' && (
+          <Feedback kind="retry" text={frames[0] === item.cards[0].id ? 'El comienzo está bien. Pensemos qué pasa después.' : 'Pensemos: ¿qué tiene que pasar antes que todo lo demás?'}>
+            <Btn label="Cambiar el orden" onPress={() => setFrames(Array(n).fill(null))} />
+          </Feedback>
+        )}
+        {phase === 'ok' && (
+          <Feedback kind="ok" text={`¡Ese es el orden! ${item.cards.map((c) => c.caption).join(' ')}`}>
+            <Btn label="Seguir" big onPress={() => setPhase('tell')} />
+          </Feedback>
+        )}
+        {phase === 'model' && (
+          <Feedback kind="info" text={`El orden es: ${item.cards.map((c) => c.caption).join(' Después, ')}`}>
+            <Btn label="Seguir" big onPress={() => setPhase('tell')} />
+          </Feedback>
+        )}
+      </ActivityFrame>
+    </DragArea>
   );
 }
 
@@ -215,6 +232,7 @@ export function MemoryRunner({ item, onDone }: RunnerProps<MemoryItem>) {
   const [tries, setTries] = useState(0);
   const [named, setNamed] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
+  const sfx = useSfx();
 
   const play = (withNames: boolean) => {
     setViews((v) => v + 1);
@@ -228,6 +246,7 @@ export function MemoryRunner({ item, onDone }: RunnerProps<MemoryItem>) {
         return;
       }
       setLit(i);
+      sfx('tap');
       if (withNames) say(item.symbols.find((s) => s.id === item.sequence[i])!.name);
       if (!settings.reduceMotion) {
         scale.setValue(1.15);
@@ -246,6 +265,7 @@ export function MemoryRunner({ item, onDone }: RunnerProps<MemoryItem>) {
     if (phase !== 'answer') return;
     const na = [...answer, id];
     setAnswer(na);
+    sfx('encaje');
     if (na.length === item.sequence.length) {
       const nt = tries + 1;
       setTries(nt);
@@ -285,7 +305,9 @@ export function MemoryRunner({ item, onDone }: RunnerProps<MemoryItem>) {
                   justifyContent: 'center',
                 })}
               >
-                <Pic pic={s.pic} size={40} />
+                <View style={{ position: 'absolute', top: -2, width: '56%', height: 8, borderRadius: 3, backgroundColor: '#5B6478' }} />
+                <View style={{ position: 'absolute', bottom: -2, width: '56%', height: 8, borderRadius: 3, backgroundColor: '#5B6478' }} />
+                <Pic pic={s.pic} size={on ? 60 : 50} />
                 <Txt size={14} weight={on ? '800' : '500'}>
                   {on ? '¡Encendido!' : s.name}
                 </Txt>
@@ -350,6 +372,7 @@ export function PathRunner({ item, onDone }: RunnerProps<PathItem>) {
   const [resets, setResets] = useState(0);
   const [hintCell, setHintCell] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const sfx = useSfx();
   const pos = path[path.length - 1];
   const moves = path.length - 1;
   const rock = (r: number, c: number) => item.rocks.some(([a, b]) => a === r && b === c);
@@ -366,6 +389,7 @@ export function PathRunner({ item, onDone }: RunnerProps<PathItem>) {
       return;
     }
     setHintCell(null);
+    sfx('tap');
     setPath([...path, [r, c]]);
   };
   const hint = () => {
@@ -423,14 +447,14 @@ export function PathRunner({ item, onDone }: RunnerProps<PathItem>) {
                     width: size,
                     height: size,
                     borderRadius: 10,
-                    backgroundColor: isRock ? '#BDB6A6' : isHint ? theme.light : visited ? '#D6ECF5' : '#EAF4E4',
+                    backgroundColor: isRock ? '#D7E9C9' : isHint ? theme.light : visited ? '#F2E2B8' : '#CFE8BF',
                     borderWidth: isHint ? 4 : adj(r, c) && !isRock && !done ? 2 : 1,
                     borderColor: isHint ? theme.lightInk : adj(r, c) && !isRock && !done ? theme.sea : theme.border,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  {isTito ? <Tito size={size * 0.85} /> : isRock ? <Pic pic="🪨" size={size * 0.45} /> : isGoal ? <Pic pic="📮" size={size * 0.5} /> : null}
+                  {isTito ? <Tito size={size * 0.85} /> : isRock ? <Pic pic="piedra" size={size * 0.8} /> : isGoal ? <Pic pic="buzon" size={size * 0.85} /> : null}
                 </Pressable>
               );
             })}

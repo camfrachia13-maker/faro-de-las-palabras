@@ -480,6 +480,8 @@ function SettingsTab({ p }: { p: Profile }) {
         <Card style={{ gap: 4 }}>
           <Toggle label="Voz de Lumi" value={s.voiceEnabled} onChange={(v) => set({ voiceEnabled: v })} />
           <Toggle label="Leer consignas automáticamente" value={s.autoRead} onChange={(v) => set({ autoRead: v })} help="Si se desactiva, igual se pueden escuchar con el botón Repetir." />
+          <Toggle label="Lumi habla menos" value={s.guideBrief} onChange={(v) => set({ guideBrief: v })} help="Solo lee las consignas y las devoluciones; no lee los saludos ni los comentarios del mapa." />
+          <Toggle label="Efectos de sonido" value={s.sfx} onChange={(v) => set({ sfx: v })} help="Sonidos breves al encajar una pieza o acertar. La app no tiene música de fondo." />
           <Stepper label="Volumen" value={s.volume} min={0.1} max={1} step={0.1} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ volume: v })} />
           <Stepper label="Velocidad" value={s.rate} min={0.6} max={1.2} step={0.1} format={(v) => `${v.toFixed(1)}×`} onChange={(v) => set({ rate: v })} />
           <Btn label="Probar la voz" icon="speaker" kind="secondary" onPress={() => speak('Hola, soy Lumi. ¿Me escuchás bien?', s)} />
@@ -490,7 +492,7 @@ function SettingsTab({ p }: { p: Profile }) {
       </Section>
       <Section title="Accesibilidad">
         <Card style={{ gap: 4 }}>
-          <Toggle label="Reducir movimiento" value={s.reduceMotion} onChange={(v) => set({ reduceMotion: v })} />
+          <Toggle label="Reducir movimiento" value={s.reduceMotion} onChange={(v) => set({ reduceMotion: v })} help="Quita saltos, festejos animados y demostraciones con movimiento. También se respeta la preferencia del sistema." />
           <Toggle label="Texto más grande" value={s.largeText} onChange={(v) => set({ largeText: v })} />
           <Toggle label="Contraste alto" value={s.highContrast} onChange={(v) => set({ highContrast: v })} />
           <Toggle

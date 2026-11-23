@@ -53,7 +53,7 @@ export interface ChoiceItem {
     text?: string; // texto para leer (no se lee automáticamente)
     sayWord?: string; // palabra que se puede volver a escuchar
     bigLetter?: string; // letra grande como estímulo
-    story?: { title: string; sentences: string[]; autoRead: boolean };
+    story?: { title: string; sentences: string[]; autoRead: boolean; art?: string[] };
     card?: { shape: Shape; color: ColorName; star?: boolean };
     rule?: 'forma' | 'color';
     template?: string; // mensaje con ___
@@ -349,10 +349,10 @@ function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: 
   const obj2 = wordById(pick(SENTENCE_OBJECTS.filter((x) => x !== obj.id), rng));
   if (level === 3) {
     const opts: Option[] = [
-      { id: 'ok', pic: `${subj.pic}${obj.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj)}` },
-      { id: 'a', pic: `${subj2.pic}${obj.pic}`, speak: `${det(subj2)} ${subj2.text} y ${eats(obj)}` },
+      { id: 'ok', pic: `${subj.pic}+${obj.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj)}` },
+      { id: 'a', pic: `${subj2.pic}+${obj.pic}`, speak: `${det(subj2)} ${subj2.text} y ${eats(obj)}` },
     ];
-    if (support === 0) opts.push({ id: 'b', pic: `${subj.pic}${obj2.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj2)}` });
+    if (support === 0) opts.push({ id: 'b', pic: `${subj.pic}+${obj2.pic}`, speak: `${det(subj)} ${subj.text} y ${eats(obj2)}` });
     const text = sentenceOf(subj, obj);
     return {
       kind: 'choice',
@@ -381,7 +381,7 @@ function lecturaPalabras(level: number, support: number, rng: Rng, reviewWord?: 
     id: uid('lo'),
     instruction: '¿Qué oración cuenta lo que muestra el dibujo?',
     speak: '¿Qué oración cuenta lo que muestra el dibujo?',
-    stimulus: { pic: `${subj.pic}${obj.pic}` },
+    stimulus: { pic: `${subj.pic}+${obj.pic}` },
     options: shuffle(opts, rng),
     correctId: 'ok',
     textIsReading: true,
@@ -412,7 +412,7 @@ function comprension(level: number, support: number, rng: Rng, used: Set<string>
     id: uid('co'),
     instruction: q.q,
     speak: q.q,
-    stimulus: { story: { title: s.title, sentences: s.sentences, autoRead: support >= 1 } },
+    stimulus: { story: { title: s.title, sentences: s.sentences, autoRead: support >= 1, art: s.art } },
     options: shuffle(options, rng),
     correctId: q.correct,
     textIsReading: true,
@@ -543,42 +543,42 @@ const SEQUENCES: { title: string; cards: { pic: string; caption: string }[]; ant
   {
     title: 'La semilla',
     cards: [
-      { pic: '🌰', caption: 'Plantamos una semilla.' },
-      { pic: '🌱', caption: 'Sale un brote.' },
-      { pic: '🌻', caption: 'Crece una flor.' },
-      { pic: '🐝', caption: 'Llega una abeja a la flor.' },
+      { pic: 'semilla', caption: 'Plantamos una semilla.' },
+      { pic: 'brote', caption: 'Sale un brote.' },
+      { pic: 'girasol', caption: 'Crece una flor.' },
+      { pic: 'abeja', caption: 'Llega una abeja a la flor.' },
     ],
-    anticipate: { q: '¿Qué puede pasar después?', options: ['🍯 La abeja hace miel', '🚀 La flor vuela', '🧊 Se congela el sol'] },
+    anticipate: { q: '¿Qué puede pasar después?', options: ['La abeja hace miel', 'La flor vuela', 'Se congela el sol'] },
   },
   {
     title: 'El huevo',
     cards: [
-      { pic: '🥚', caption: 'Hay un huevo en el nido.' },
-      { pic: '🐣', caption: 'El huevo se rompe.' },
-      { pic: '🐥', caption: 'Sale un pollito.' },
-      { pic: '🐔', caption: 'El pollito crece.' },
+      { pic: 'huevo', caption: 'Hay un huevo en el nido.' },
+      { pic: 'huevoRoto', caption: 'El huevo se rompe.' },
+      { pic: 'pollito', caption: 'Sale un pollito.' },
+      { pic: 'gallina', caption: 'El pollito crece.' },
     ],
-    anticipate: { q: '¿Qué puede pasar después?', options: ['🥚 Pone un huevo', '🚗 Maneja un auto', '📚 Va a la escuela'] },
+    anticipate: { q: '¿Qué puede pasar después?', options: ['Pone un huevo', 'Maneja un auto', 'Va a la escuela'] },
   },
   {
     title: 'La torta',
     cards: [
-      { pic: '🥣', caption: 'Mezclamos harina y huevos.' },
-      { pic: '🔥', caption: 'La ponemos en el horno.' },
-      { pic: '🎂', caption: 'Decoramos la torta.' },
-      { pic: '🍰', caption: 'Comemos una porción.' },
+      { pic: 'bol', caption: 'Mezclamos harina y huevos.' },
+      { pic: 'horno', caption: 'La ponemos en el horno.' },
+      { pic: 'torta', caption: 'Decoramos la torta.' },
+      { pic: 'porcion', caption: 'Comemos una porción.' },
     ],
-    anticipate: { q: '¿Qué puede pasar después?', options: ['🧽 Lavamos los platos', '🌊 Nadamos en la torta', '🦕 Aparece un dinosaurio'] },
+    anticipate: { q: '¿Qué puede pasar después?', options: ['Lavamos los platos', 'Nadamos en la torta', 'Aparece un dinosaurio'] },
   },
   {
     title: 'La lluvia',
     cards: [
-      { pic: '☁️', caption: 'Se nubla el cielo.' },
-      { pic: '🌧️', caption: 'Empieza a llover.' },
-      { pic: '🌈', caption: 'Sale el arcoíris.' },
-      { pic: '☀️', caption: 'Vuelve el sol.' },
+      { pic: 'nube', caption: 'Se nubla el cielo.' },
+      { pic: 'lluvia', caption: 'Empieza a llover.' },
+      { pic: 'arcoiris', caption: 'Sale el arcoíris.' },
+      { pic: 'sol', caption: 'Vuelve el sol.' },
     ],
-    anticipate: { q: '¿Qué puede pasar después?', options: ['🏖️ Salimos a jugar', '🌙 Sale el sol de noche', '❄️ Nieva en la playa'] },
+    anticipate: { q: '¿Qué puede pasar después?', options: ['Salimos a jugar', 'Sale el sol de noche', 'Nieva en la playa'] },
   },
 ];
 
@@ -666,7 +666,7 @@ function categorias(level: number, support: number, rng: Rng): ChoiceItem {
       id: uid('ca'),
       instruction: '¿Cuál va con este grupo?',
       speak: `Mirá el grupo: ${group.map((g) => g.text).join(', ')}. ¿Cuál va con este grupo?`,
-      stimulus: { pic: group.map((g) => g.pic).join(' ') },
+      stimulus: { pic: group.map((g) => g.pic).join('+') },
       options: shuffle(candidates, rng).map((x) => ({ id: x.id, pic: x.pic, label: x.text, speak: x.text })),
       correctId: same.id,
       showPicLabels: true,
@@ -704,12 +704,12 @@ function categorias(level: number, support: number, rng: Rng): ChoiceItem {
 // ---------- Cognitivo ----------
 
 const LANTERNS = [
-  { id: 'estrella', pic: '⭐', name: 'estrella' },
-  { id: 'luna', pic: '🌙', name: 'luna' },
-  { id: 'pez', pic: '🐟', name: 'pez' },
-  { id: 'caracol', pic: '🐚', name: 'caracol' },
-  { id: 'hoja', pic: '🍃', name: 'hoja' },
-  { id: 'ancla', pic: '⚓', name: 'ancla' },
+  { id: 'estrella', pic: 'estrella', name: 'estrella' },
+  { id: 'luna', pic: 'luna', name: 'luna' },
+  { id: 'pez', pic: 'pez', name: 'pez' },
+  { id: 'caracol', pic: 'caracolMar', name: 'caracol' },
+  { id: 'hoja', pic: 'hoja', name: 'hoja' },
+  { id: 'ancla', pic: 'ancla', name: 'ancla' },
 ];
 
 function memoria(level: number, support: number, rng: Rng): MemoryItem {
