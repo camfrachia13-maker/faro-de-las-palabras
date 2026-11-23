@@ -1,6 +1,7 @@
 // Mapa ilustrado del archipiélago y escenas de cada lugar.
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '../text';
 import Svg, { Circle, Ellipse, G, Path, Polygon, Rect, Line } from 'react-native-svg';
 import { ACTIVITIES } from '../../content/activities';
 import { CHARACTERS, GUIDE_LINES, PATH_LANTERNS, STORY_PAGES, Zone, ZONES } from '../../content/world';

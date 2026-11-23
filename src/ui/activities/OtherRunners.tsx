@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '../text';
 import type { MemoryItem, PathItem, SequenceItem } from '../../domain/items';
 import { bfs, shuffle } from '../../domain/items';
 import { ActivityFrame, OralRecorder, RunnerProps, strategyNotes } from './common';

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, View } from 'react-native';
+import { TextInput } from '../text';
 import Svg, { Path, Ellipse, Circle } from 'react-native-svg';
 import { ACTIVITIES } from '../../content/activities';
 import { AVATAR_BASES, AVATAR_COLORS, CELEBRATIONS, CHARACTERS, GUIDE_LINES, PATH_LANTERNS, REWARDS, STORY_PAGES } from '../../content/world';

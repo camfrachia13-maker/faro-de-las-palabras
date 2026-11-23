@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '../text';
 import type { ChoiceItem, Option } from '../../domain/items';
 import { ActivityFrame, OralRecorder, RunnerProps, strategyNotes } from './common';
 import { Btn, Feedback, IconBtn, Pic, Txt, caseText, useSettings, useSpeak } from '../components';

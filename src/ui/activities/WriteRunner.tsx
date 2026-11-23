@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text, TextInput } from '../text';
 import type { WriteItem } from '../../domain/items';
 import { analyzeWord, normalize } from '../../domain/writingAnalysis';
 import { LETTER_NAMES } from '../../content/words';

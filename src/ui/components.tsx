@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { Text } from './text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from './store';
 import { Icon, IconName, Lumi, Mood } from './art';

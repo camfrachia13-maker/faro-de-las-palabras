@@ -52,7 +52,8 @@ export async function loadProfiles(idx: AppIndex): Promise<Profile[]> {
       const raw = await store.getItem(profileKey(id));
       if (raw) {
         const p = JSON.parse(raw) as Profile;
-        p.settings = { ...DEFAULT_SETTINGS, ...p.settings };
+        // toda la app se muestra en imprenta mayúscula
+        p.settings = { ...DEFAULT_SETTINGS, ...p.settings, letterCase: 'mayuscula' };
         out.push(p);
       }
     } catch {}

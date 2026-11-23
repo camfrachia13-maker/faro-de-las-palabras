@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Platform, Pressable, Share, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, Share, View } from 'react-native';
+import { Text, TextInput } from '../text';
 import { ACTIVITIES, ACTIVITY_IDS, AREA_LABEL } from '../../content/activities';
 import { RULES_DESCRIPTION, adultAdjust, MAX_SUPPORT } from '../../domain/adaptation';
 import { activityEvidence, attemptsForDisplay, OUTCOME_LABEL, participation, suggestions, writingSummary } from '../../domain/report';
@@ -495,12 +496,6 @@ function SettingsTab({ p }: { p: Profile }) {
           <Toggle label="Reducir movimiento" value={s.reduceMotion} onChange={(v) => set({ reduceMotion: v })} help="Quita saltos, festejos animados y demostraciones con movimiento. También se respeta la preferencia del sistema." />
           <Toggle label="Texto más grande" value={s.largeText} onChange={(v) => set({ largeText: v })} />
           <Toggle label="Contraste alto" value={s.highContrast} onChange={(v) => set({ highContrast: v })} />
-          <Toggle
-            label="Letras en minúscula"
-            value={s.letterCase === 'minuscula'}
-            onChange={(v) => set({ letterCase: v ? 'minuscula' : 'mayuscula' })}
-            help="Por defecto se usa mayúscula de imprenta, habitual al comenzar a escribir."
-          />
           <Toggle
             label="Permitir grabar relatos"
             value={s.recordingAllowed}

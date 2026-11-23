@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, View } from 'react-native';
+import { Text } from '../text';
 import type { BuildItem } from '../../domain/items';
 import { ActivityFrame, RunnerProps, strategyNotes } from './common';
 import { Btn, Feedback, Pic, Row, caseText, useReduceMotion, useSettings, useSfx, useSpeak } from '../components';
